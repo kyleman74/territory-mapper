@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Territory Mapper</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        #map { height: 100%; width: 100%; }
+        .leaflet-popup-content { margin: 0; }
+        .territory-checkbox:checked + label {
+            background-color: #E0E7FF;
+            border-color: #6366F1;
+        }
+        .color-picker-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .color-picker {
+            opacity: 0;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .marker-icon-option {
+            cursor: pointer;
+            padding: 8px;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .marker-icon-option:hover {
+            background-color: #F3F4F6;
+        }
+        .marker-icon-option.selected {
+            border-color: #6366F1;
+            background-color: #E0E7FF;
+        }
+    </style>
+</head>
+<body class="m-0 p-0 font-sans">
+    <div class="flex flex-col h-screen bg-gray-50">
+        <!-- Header -->
+        <div class="bg-white shadow-sm border-b">
+            <div class="px-6 py-4">
+                <h1 class="text-2xl font-bold text-gray-800">Sales Territory Mapper</h1>
+                <p class="text-sm text-gray-600 mt-1">Upload locations and manage sales territories</p>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="bg-white px-6 py-3 border-b flex items-center gap-4 flex-wrap">
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="hidden" />
+            
+            <button onclick="document.getElementById('fileInput').click()" 
+                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                Upload File
+            </button>
+
+            <button onclick="exportData()" id="exportBtn" 
+                    class="hidden flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                Export Data
+            </button>
+
+            <button onclick="saveProject()" id="saveBtn"
+                    class="hidden flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                </svg>
+                Save Project
+            </button>
+
+            <input type="file" id="projectInput" accept=".json" class="hidden" onchange="loadProject(event)" />
+            
+            <button onclick="document.getElementById('projectInput').click()" id="loadBtn"
+                    class="hidden flex items-center gap-2 px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                Load Project
+            </button>
+
+            <button onclick="toggleDrawingMode()" id="drawBtn"
+                    class="hidden flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                </svg>
+                <span id="drawBtnText">Select Mode</span>
+            </button>
+
+            <button onclick="toggleCustomization()" id="customizeBtn"
+                    class="hidden flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                </svg>
+                Customize
+            </button>
+
+            <select id="premiseFilter" onchange="filterByPremise()" 
+                    class="hidden px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="all">All Locations</option>
+                <option value="on">On Premise Only</option>
+                <option value="off">Off Premise Only</option>
+            </select>
+
+            <span id="locationCount" class="hidden text-sm text-gray-600"></span>
+
+            <div id="selectionTools" class="hidden items-center gap-2 ml-auto bg-yellow-50 px-4 py-2 rounded-lg">
+                <span id="selectedCount" class="text-sm font-medium text-gray-700"></span>
+                <input type="text" id="newTerritory" placeholder="Territory name" 
+                       class="px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <datalist id="territories"></datalist>
+                <button onclick="reassignTerritory()" 
+                        class="flex items-center gap-1 px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                    </svg>
+                    Reassign
+                </button>
+                <button onclick="clearSelection()" class="p-1 text-gray-500 hover:text-gray-700">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Sidebar -->
+            <div id="sidebar" class="hidden w-80 bg-white border-r overflow-y-auto">
+                <div class="p-4">
+                    <h3 class="font-semibold text-gray-800 mb-4">Territory Summary</h3>
+                    
+                    <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                                <p class="text-gray-600">Total Locations</p>
+                                <p id="totalLocations" class="text-2xl font-bold text-gray-800">0</p>
+                            </div>
+                            <div>
+                                <p class="text-gray-600">Territories</p>
+                                <p id="totalTerritories" class="text-2xl font-bold text-gray-800">0</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Territory Filter Controls -->
+                    <div class="mb-4 flex gap-2">
+                        <button onclick="selectAllTerritories()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">
+                            Select All
+                        </button>
+                        <button onclick="selectNoneTerritories()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">
+                            Select None
+                        </button>
+                    </div>
+
+                    <div id="territoryList" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <!-- Map -->
+            <div class="flex-1 relative">
+                <div id="map"></div>
+                
+                <!-- Customization Panel -->
+                <div id="customizationPanel" class="hidden absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-[1000] w-80 max-h-96 overflow-y-auto">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="font-semibold text-gray-800">Customize Appearance</h4>
+                        <button onclick="toggleCustomization()" class="text-gray-500 hover:text-gray-700">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <h5 class="text-sm font-medium text-gray-700 mb-2">Marker Style</h5>
+                            <div class="grid grid-cols-4 gap-2">
+                                <div class="marker-icon-option selected" onclick="setMarkerStyle('circle')" data-style="circle">
+                                    <svg class="w-6 h-6 mx-auto" viewBox="0 0 24 24">
+                                        <circle cx="12" cy="12" r="8" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <div class="marker-icon-option" onclick="setMarkerStyle('square')" data-style="square">
+                                    <svg class="w-6 h-6 mx-auto" viewBox="0 0 24 24">
+                                        <rect x="6" y="6" width="12" height="12" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <div class="marker-icon-option" onclick="setMarkerStyle('diamond')" data-style="diamond">
+                                    <svg class="w-6 h-6 mx-auto" viewBox="0 0 24 24">
+                                        <path d="M12 2 L22 12 L12 22 L2 12 Z" fill="currentColor"/>
+                                    </svg>
+                                </div>
+                                <div class="marker-icon-option" onclick="setMarkerStyle('pin')" data-style="pin">
+                                    <svg class="w-6 h-6 mx-auto" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h5 class="text-sm font-medium text-gray-700 mb-2">Territory Colors</h5>
+                            <div id="colorCustomization" class="space-y-2 max-h-40 overflow-y-auto"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="drawingModeInfo" class="hidden absolute top-4 left-4 bg-white p-4 rounded-lg shadow-lg z-[1000] max-w-xs">
+                    <h4 class="font-semibold text-purple-700 mb-2">Drawing Mode Active</h4>
+                    <p class="text-sm text-gray-600">
+                        Use the polygon or rectangle tools to select multiple locations at once.
+                    </p>
+                </div>
+                
+                <div id="uploadPrompt" class="absolute inset-0 flex items-center justify-center bg-gray-100">
+                    <div class="text-center">
+                        <svg class="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        <p class="text-gray-600 font-medium">Upload a CSV or Excel file to get started</p>
+                        <p class="text-sm text-gray-500 mt-2">
+                            File should contain latitude, longitude, and territory columns
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+
+    <script>
+        // Global variables
+        let map;
+        let locations = [];
+        let territories = [];
+        let markers = {};
+        let selectedLocations = new Set();
+        let selectedTerritories = new Set();
+        let premiseFilter = 'all';
+        let drawingMode = false;
+        let drawnItems;
+        let drawControl;
+        let markerStyle = 'circle';
+        let territoryColors = {};
+
+        // Default territory colors
+        const DEFAULT_COLORS = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57',
+            '#FF9FF3', '#54A0FF', '#48DBFB', '#A29BFE', '#FD79A8',
+            '#FDCB6E', '#6C5CE7', '#00B894', '#00CEC9', '#E17055',
+            '#74B9FF', '#A29BFE', '#81ECEC', '#FD79A8', '#FDCB6E'
+        ];
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([39.8283, -98.5795], 4);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            // Drawing controls
+            drawControl = new L.Control.Draw({
+                draw: {
+                    polygon: true,
+                    rectangle: true,
+                    circle: false,
+                    circlemarker: false,
+                    marker: false,
+                    polyline: false
+                },
+                edit: false
+            });
+
+            map.on('draw:created', function(e) {
+                const layer = e.layer;
+                const bounds = layer.getBounds();
+                
+                locations.forEach(loc => {
+                    const point = L.latLng(loc.lat, loc.lng);
+                    if (bounds.contains(point)) {
+                        selectedLocations.add(loc.id);
+                    }
+                });
+                
+                updateMarkers();
+                updateSelectionUI();
+                
+                setTimeout(() => {
+                    drawnItems.removeLayer(layer);
+                }, 500);
+            });
+        }
+
+        // File upload handler
+        document.getElementById('fileInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const extension = file.name.split('.').pop().toLowerCase();
+            
+            if (extension === 'csv') {
+                const text = await file.text();
+                Papa.parse(text, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        processData(results.data);
+                    }
+                });
+            } else if (extension === 'xlsx' || extension === 'xls') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                    processData(jsonData);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // Process data
+        function processData(data) {
+            const sampleRow = data[0];
+            const columns = Object.keys(sampleRow);
+            
+            const latCol = columns.find(col => 
+                col.toLowerCase().includes('lat') || col.toLowerCase().includes('latitude')
+            );
+            const lngCol = columns.find(col => 
+                col.toLowerCase().includes('lng') || col.toLowerCase().includes('lon') || col.toLowerCase().includes('longitude')
+            );
+            const territoryCol = columns.find(col => 
+                col.toLowerCase().includes('territory') || col.toLowerCase().includes('region')
+            );
+            const nameCol = columns.find(col => 
+                col.toLowerCase().includes('name') || col.toLowerCase().includes('location') || col.toLowerCase().includes('address')
+            ) || columns[0];
+            
+            // Find premise column (on/off premise)
+            const premiseCol = columns.find(col => 
+                col.toLowerCase().includes('premise') || 
+                col.toLowerCase().includes('on-premise') || 
+                col.toLowerCase().includes('off-premise') ||
+                col.toLowerCase().includes('type')
+            );
+
+            locations = data
+                .filter(row => row[latCol] && row[lngCol])
+                .map((row, index) => ({
+                    id: index,
+                    name: row[nameCol] || `Location ${index + 1}`,
+                    lat: parseFloat(row[latCol]),
+                    lng: parseFloat(row[lngCol]),
+                    territory: row[territoryCol] || 'Unassigned',
+                    premise: premiseCol ? detectPremiseType(row[premiseCol]) : 'unknown',
+                    ...row
+                }));
+
+            territories = [...new Set(locations.map(loc => loc.territory))];
+            
+            // Initialize colors
+            territories.forEach((territory, index) => {
+                if (!territoryColors[territory]) {
+                    territoryColors[territory] = DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+                }
+            });
+            
+            // Select all territories by default
+            selectedTerritories = new Set(territories);
+            
+            updateUI();
+            updateMarkers();
+            
+            if (locations.length > 0) {
+                const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
+                map.fitBounds(bounds, { padding: [50, 50] });
+                document.getElementById('uploadPrompt').classList.add('hidden');
+            }
+        }
+
+        // Detect premise type
+        function detectPremiseType(value) {
+            if (!value) return 'unknown';
+            const val = value.toString().toLowerCase();
+            if (val.includes('on') || val === '1' || val === 'true') return 'on';
+            if (val.includes('off') || val === '0' || val === 'false') return 'off';
+            return 'unknown';
+        }
+
+        // Update UI
+        function updateUI() {
+            // Show controls
+            document.getElementById('exportBtn').classList.remove('hidden');
+            document.getElementById('drawBtn').classList.remove('hidden');
+            document.getElementById('customizeBtn').classList.remove('hidden');
+            document.getElementById('premiseFilter').classList.remove('hidden');
+            document.getElementById('locationCount').classList.remove('hidden');
+            document.getElementById('sidebar').classList.remove('hidden');
+
+            // Update datalist
+            const datalist = document.getElementById('territories');
+            datalist.innerHTML = territories.map(t => `<option value="${t}">`).join('');
+            document.getElementById('newTerritory').setAttribute('list', 'territories');
+
+            // Update stats
+            updateStats();
+            updateLocationCount();
+            updateColorCustomization();
+        }
+
+        // Update markers
+        function updateMarkers() {
+            // Clear existing markers
+            Object.values(markers).forEach(marker => map.removeLayer(marker));
+            markers = {};
+
+            const locationsToShow = locations.filter(loc => {
+                // Territory filter
+                if (!selectedTerritories.has(loc.territory)) return false;
+                
+                // Premise filter
+                if (premiseFilter !== 'all') {
+                    if (premiseFilter === 'on' && loc.premise !== 'on') return false;
+                    if (premiseFilter === 'off' && loc.premise !== 'off') return false;
+                }
+                
+                return true;
+            });
+
+            locationsToShow.forEach(location => {
+                const color = territoryColors[location.territory] || getTerritoryColor(location.territory);
+                const isSelected = selectedLocations.has(location.id);
+                
+                let marker;
+                
+                if (markerStyle === 'pin') {
+                    // Custom pin icon
+                    const pinIcon = L.divIcon({
+                        html: `<svg width="24" height="36" viewBox="0 0 24 36" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));">
+                            <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24c0-6.627-5.373-12-12-12z" 
+                                  fill="${color}" stroke="${isSelected ? '#000' : '#fff'}" stroke-width="${isSelected ? 3 : 2}"/>
+                            <circle cx="12" cy="12" r="4" fill="white"/>
+                        </svg>`,
+                        className: '',
+                        iconSize: [24, 36],
+                        iconAnchor: [12, 36],
+                        popupAnchor: [0, -36]
+                    });
+                    marker = L.marker([location.lat, location.lng], { icon: pinIcon });
+                } else {
+                    // Circle, square, or diamond
+                    const options = {
+                        radius: 8,
+                        fillColor: color,
+                        color: isSelected ? '#000' : '#fff',
+                        weight: isSelected ? 3 : 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    };
+                    
+                    if (markerStyle === 'square') {
+                        marker = L.rectangle([
+                            [location.lat - 0.01, location.lng - 0.01],
+                            [location.lat + 0.01, location.lng + 0.01]
+                        ], options);
+                    } else if (markerStyle === 'diamond') {
+                        const diamondCoords = [
+                            [location.lat + 0.01, location.lng],
+                            [location.lat, location.lng + 0.01],
+                            [location.lat - 0.01, location.lng],
+                            [location.lat, location.lng - 0.01]
+                        ];
+                        marker = L.polygon(diamondCoords, options);
+                    } else {
+                        marker = L.circleMarker([location.lat, location.lng], options);
+                    }
+                }
+
+                const premiseLabel = location.premise === 'on' ? 'On Premise' : 
+                                   location.premise === 'off' ? 'Off Premise' : 'Unknown';
+
+                marker.bindPopup(`
+                    <div style="padding: 8px;">
+                        <h4 style="font-weight: 600; margin: 0 0 4px 0;">${location.name}</h4>
+                        <p style="margin: 0; font-size: 0.875rem;">Territory: ${location.territory}</p>
+                        <p style="margin: 0; font-size: 0.875rem;">Type: ${premiseLabel}</p>
+                        <p style="margin: 0; font-size: 0.75rem; color: #666;">
+                            ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}
+                        </p>
+                    </div>
+                `);
+
+                marker.on('click', function() {
+                    if (!drawingMode) {
+                        if (selectedLocations.has(location.id)) {
+                            selectedLocations.delete(location.id);
+                        } else {
+                            selectedLocations.add(location.id);
+                        }
+                        updateMarkers();
+                        updateSelectionUI();
+                    }
+                });
+
+                marker.addTo(map);
+                markers[location.id] = marker;
+            });
+        }
+
+        // Territory color
+        function getTerritoryColor(territory) {
+            const index = territories.indexOf(territory);
+            return DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+        }
+
+        // Toggle drawing mode
+        function toggleDrawingMode() {
+            drawingMode = !drawingMode;
+            const btn = document.getElementById('drawBtn');
+            const info = document.getElementById('drawingModeInfo');
+            
+            if (drawingMode) {
+                map.addControl(drawControl);
+                btn.classList.remove('bg-gray-200', 'text-gray-700');
+                btn.classList.add('bg-purple-500', 'text-white');
+                document.getElementById('drawBtnText').textContent = 'Drawing Mode';
+                info.classList.remove('hidden');
+            } else {
+                map.removeControl(drawControl);
+                btn.classList.remove('bg-purple-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+                document.getElementById('drawBtnText').textContent = 'Select Mode';
+                info.classList.add('hidden');
+            }
+        }
+
+        // Toggle customization panel
+        function toggleCustomization() {
+            const panel = document.getElementById('customizationPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        // Set marker style
+        function setMarkerStyle(style) {
+            markerStyle = style;
+            document.querySelectorAll('.marker-icon-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector(`[data-style="${style}"]`).classList.add('selected');
+            updateMarkers();
+        }
+
+        // Update color customization
+        function updateColorCustomization() {
+            const container = document.getElementById('colorCustomization');
+            container.innerHTML = territories.map(territory => `
+                <div class="flex items-center justify-between">
+                    <span class="text-sm">${territory}</span>
+                    <div class="color-picker-wrapper">
+                        <input type="color" 
+                               class="color-picker" 
+                               value="${territoryColors[territory] || getTerritoryColor(territory)}"
+                               onchange="updateTerritoryColor('${territory}', this.value)">
+                        <div class="w-8 h-8 rounded border cursor-pointer" 
+                             style="background-color: ${territoryColors[territory] || getTerritoryColor(territory)}">
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update territory color
+        function updateTerritoryColor(territory, color) {
+            territoryColors[territory] = color;
+            updateMarkers();
+            updateStats();
+        }
+
+        // Filter by premise
+        function filterByPremise() {
+            premiseFilter = document.getElementById('premiseFilter').value;
+            updateMarkers();
+            updateLocationCount();
+        }
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('totalLocations').textContent = locations.length;
+            document.getElementById('totalTerritories').textContent = territories.length;
+
+            const stats = _.groupBy(locations, 'territory');
+            const territoryList = document.getElementById('territoryList');
+            
+            territoryList.innerHTML = territories.map(territory => {
+                const locs = stats[territory] || [];
+                const percentage = ((locs.length / locations.length) * 100).toFixed(1);
+                const isChecked = selectedTerritories.has(territory);
+                
+                return `
+                    <div class="flex items-center space-x-2">
+                        <input type="checkbox" 
+                               id="territory-${territory}" 
+                               class="territory-checkbox hidden"
+                               ${isChecked ? 'checked' : ''}
+                               onchange="toggleTerritory('${territory}')">
+                        <label for="territory-${territory}" 
+                               class="flex-1 flex items-center justify-between p-3 rounded-lg cursor-pointer border-2 border-gray-200 hover:border-gray-300 transition-all">
+                            <div class="flex items-center gap-3">
+                                <div class="w-4 h-4 rounded" style="background-color: ${territoryColors[territory] || getTerritoryColor(territory)}"></div>
+                                <div>
+                                    <p class="font-medium text-sm">${territory}</p>
+                                    <p class="text-xs text-gray-500">${percentage}% of total</p>
+                                </div>
+                            </div>
+                            <span class="text-sm font-medium text-gray-700">${locs.length}</span>
+                        </label>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Toggle territory selection
+        function toggleTerritory(territory) {
+            if (selectedTerritories.has(territory)) {
+                selectedTerritories.delete(territory);
+            } else {
+                selectedTerritories.add(territory);
+            }
+            updateMarkers();
+            updateLocationCount();
+        }
+
+        // Select all territories
+        function selectAllTerritories() {
+            selectedTerritories = new Set(territories);
+            updateStats();
+            updateMarkers();
+            updateLocationCount();
+        }
+
+        // Select no territories
+        function selectNoneTerritories() {
+            selectedTerritories.clear();
+            updateStats();
+            updateMarkers();
+            updateLocationCount();
+        }
+
+        // Update location count
+        function updateLocationCount() {
+            const count = locations.filter(loc => {
+                if (!selectedTerritories.has(loc.territory)) return false;
+                if (premiseFilter !== 'all') {
+                    if (premiseFilter === 'on' && loc.premise !== 'on') return false;
+                    if (premiseFilter === 'off' && loc.premise !== 'off') return false;
+                }
+                return true;
+            }).length;
+            
+            document.getElementById('locationCount').textContent = `${count} locations shown`;
+        }
+
+        // Update selection UI
+        function updateSelectionUI() {
+            const tools = document.getElementById('selectionTools');
+            if (selectedLocations.size > 0) {
+                tools.classList.remove('hidden');
+                tools.classList.add('flex');
+                document.getElementById('selectedCount').textContent = `${selectedLocations.size} selected`;
+            } else {
+                tools.classList.add('hidden');
+                tools.classList.remove('flex');
+            }
+        }
+
+        // Reassign territory
+        function reassignTerritory() {
+            const newTerritory = document.getElementById('newTerritory').value;
+            if (!newTerritory || selectedLocations.size === 0) return;
+
+            locations = locations.map(loc => {
+                if (selectedLocations.has(loc.id)) {
+                    return { ...loc, territory: newTerritory };
+                }
+                return loc;
+            });
+
+            if (!territories.includes(newTerritory)) {
+                territories.push(newTerritory);
+                territoryColors[newTerritory] = DEFAULT_COLORS[territories.length % DEFAULT_COLORS.length];
+                selectedTerritories.add(newTerritory);
+            }
+
+            selectedLocations.clear();
+            updateUI();
+            updateMarkers();
+            updateSelectionUI();
+            document.getElementById('newTerritory').value = '';
+        }
+
+        // Clear selection
+        function clearSelection() {
+            selectedLocations.clear();
+            updateMarkers();
+            updateSelectionUI();
+        }
+
+        // Export data
+        function exportData() {
+            const ws = XLSX.utils.json_to_sheet(locations);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Territories');
+            XLSX.writeFile(wb, 'updated_territories.xlsx');
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initMap();
+        };
+    </script>
+</body>
+</html>
