@@ -52,7 +52,7 @@
     <script>
         // YOUR GOOGLE SHEET CONFIG
         const SHEET_ID = '10wyY1JClMR5eML19dZSjEekt5tTYLy_wYGYpAHjxAck';
-        const SHEET_NAME = 'TerritoryData'; // Update if your sheet tab has a different name
+        const SHEET_NAME = 'TerritoryData'; // This matches your tab name
         const API_KEY = 'AIzaSyCJ8hlXwXjYSnVv3cRLkuAti0jp0yORUNI'; // Public API key for reading
     </script>
 
@@ -62,7 +62,7 @@
             <div class="px-6 py-4">
                 <h1 class="text-2xl font-bold text-gray-800">Sales Territory Mapper</h1>
                 <p class="text-sm text-gray-600 mt-1">
-                    Connected to Google Sheets - Changes sync automatically
+                    Connected to Google Sheets - Manual refresh mode (saves API quota)
                     <span id="syncStatus" class="ml-2">
                         <span class="sync-indicator sync-success"></span>
                         <span class="text-xs">Ready</span>
@@ -79,6 +79,14 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
                 Refresh from Sheet
+            </button>
+
+            <button onclick="toggleAutoRefresh()" id="autoRefreshBtn"
+                    class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span id="autoRefreshText">Auto-refresh: OFF</span>
             </button>
 
             <button onclick="saveToGoogleSheets()" 
@@ -132,7 +140,7 @@
             <span id="locationCount" class="text-sm text-gray-600"></span>
 
             <div class="ml-auto">
-                <a href="https://docs.google.com/spreadsheets/d/1cjlRT0sNfkpjzTtxc4qreCPhhv8ZBkXV/edit" 
+                <a href="https://docs.google.com/spreadsheets/d/10wyY1JClMR5eML19dZSjEekt5tTYLy_wYGYpAHjxAck/edit" 
                    target="_blank"
                    class="text-sm text-blue-600 hover:underline">
                     Open Google Sheet →
@@ -236,6 +244,8 @@
         let territoryColors = {};
         let webAppUrl = null;
         let columnIndices = {};
+        let autoRefreshInterval = null;
+        let autoRefreshEnabled = false;
 
         // Territory colors
         const DEFAULT_COLORS = [
@@ -287,6 +297,13 @@
                 }, 500);
             });
 
+            // Redraw markers on zoom to maintain square sizes
+            map.on('zoomend', function() {
+                if (locations.length > 0) {
+                    updateMarkers();
+                }
+            });
+
             // Close dropdowns when clicking outside
             document.addEventListener('click', function(e) {
                 if (!e.target.closest('.relative')) {
@@ -295,21 +312,44 @@
             });
         }
 
+        // Toggle auto refresh
+        function toggleAutoRefresh() {
+            autoRefreshEnabled = !autoRefreshEnabled;
+            const btn = document.getElementById('autoRefreshBtn');
+            const text = document.getElementById('autoRefreshText');
+            
+            if (autoRefreshEnabled) {
+                // Start auto-refresh every 5 minutes
+                autoRefreshInterval = setInterval(loadFromGoogleSheets, 300000);
+                btn.classList.remove('bg-gray-200', 'text-gray-700');
+                btn.classList.add('bg-green-500', 'text-white');
+                text.textContent = 'Auto-refresh: ON (5 min)';
+            } else {
+                // Stop auto-refresh
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+                btn.classList.remove('bg-green-500', 'text-white');
+                btn.classList.add('bg-gray-200', 'text-gray-700');
+                text.textContent = 'Auto-refresh: OFF';
+            }
+        }
+
         // Initialize app
         window.onload = function() {
             initMap();
             setupGoogleSheetsWebApp();
             loadFromGoogleSheets();
             
-            // Auto-refresh every 30 seconds
-            setInterval(loadFromGoogleSheets, 30000);
+            // Don't auto-refresh by default to save API quota
+            // User can enable it manually if needed
         };
 
         // Setup Google Apps Script Web App for writing
         function setupGoogleSheetsWebApp() {
-            // This will be the URL of your Google Apps Script Web App
-            // We'll create this in the next step
-            webAppUrl = 'YOUR_WEB_APP_URL_HERE'; // You'll need to add this after creating the Apps Script
+            // Your deployed web app URL
+            webAppUrl = 'https://script.google.com/macros/s/AKfycbzKxPjrxHFUkjEOZWvZJLUs4mZUROX_d95Uo6nxZIplwZLprS0ALrgFKK8CaNJFwx_Rcg/exec';
         }
 
         // Update sync status
@@ -412,11 +452,17 @@
             updateSyncStatus('loading', 'Loading from Google Sheets...');
             
             try {
-                const range = `${SHEET_NAME}!A:AA`; // Get columns A through AA (27 columns)
+                const range = encodeURIComponent(`${SHEET_NAME}!A:AA`); // Encode the range properly
                 const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
                 
+                console.log('Fetching from URL:', url); // Debug log
+                
                 const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to load data');
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error:', errorText);
+                    throw new Error('Failed to load data');
+                }
                 
                 const data = await response.json();
                 processGoogleSheetsData(data.values);
@@ -473,12 +519,20 @@
             territories = [...new Set(locations.map(loc => loc.territory))];
             states = [...new Set(locations.map(loc => loc.state).filter(s => s))].sort();
             
-            // Initialize colors
+            // Initialize colors - load from localStorage if available
+            const savedColors = localStorage.getItem('territoryColors');
+            if (savedColors) {
+                territoryColors = JSON.parse(savedColors);
+            }
+            
             territories.forEach((territory, index) => {
                 if (!territoryColors[territory]) {
                     territoryColors[territory] = DEFAULT_COLORS[index % DEFAULT_COLORS.length];
                 }
             });
+            
+            // Save updated colors
+            localStorage.setItem('territoryColors', JSON.stringify(territoryColors));
             
             // Initialize selections
             selectedTerritories = new Set(territories);
@@ -497,7 +551,7 @@
 
         // Save data to Google Sheets
         async function saveToGoogleSheets() {
-            if (!webAppUrl || webAppUrl === 'YOUR_WEB_APP_URL_HERE') {
+            if (!webAppUrl || webAppUrl === 'YOUR_DEPLOYED_WEB_APP_URL') {
                 alert('To enable saving, you need to set up a Google Apps Script Web App. For now, data is read-only.');
                 return;
             }
@@ -562,7 +616,7 @@
         // Get marker size based on metric
         function getMarkerSize(location) {
             const sizeMetric = document.getElementById('sizeMetric').value;
-            if (sizeMetric === 'none') return 8;
+            if (sizeMetric === 'none') return 10; // Increased base size from 8 to 10
             
             let value = 0;
             switch(sizeMetric) {
@@ -577,11 +631,28 @@
                     break;
             }
             
-            // Minimum size of 4, scale up based on value
-            const minSize = 4;
-            const maxSize = 20;
-            const scaledSize = minSize + (Math.sqrt(value) / 50); // Adjust scaling factor as needed
-            return Math.min(Math.max(scaledSize, minSize), maxSize);
+            // Get all values for normalization
+            const allValues = locations.map(loc => {
+                switch(sizeMetric) {
+                    case '3 Yr Plan Mrkt Shr': return loc.planMrktShr;
+                    case 'Dstar TPV': return loc.dstarTPV;
+                    case 'PRUSA NNS': return loc.prusaNNS;
+                    default: return 0;
+                }
+            }).filter(v => v > 0);
+            
+            if (allValues.length === 0 || value === 0) return 10;
+            
+            const maxValue = Math.max(...allValues);
+            const minValue = Math.min(...allValues);
+            
+            // Normalize value between 0 and 1
+            const normalizedValue = (value - minValue) / (maxValue - minValue);
+            
+            // Scale between 8 and 25 pixels
+            const minSize = 8;
+            const maxSize = 25;
+            return minSize + (normalizedValue * (maxSize - minSize));
         }
 
         // Update markers
@@ -626,12 +697,15 @@
                 if (location.premise === 'on') {
                     marker = L.circleMarker([location.lat, location.lng], options);
                 } else {
-                    // Create square marker
-                    const latOffset = size * 0.00015;
-                    const lngOffset = size * 0.00015;
+                    // Create square marker - properly sized
+                    const metersPerPixel = 156543.03392 * Math.cos(location.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+                    const sizeInMeters = size * metersPerPixel * 2; // Convert pixel size to meters
+                    const latOffset = sizeInMeters / 111111; // degrees latitude per meter
+                    const lngOffset = sizeInMeters / (111111 * Math.cos(location.lat * Math.PI / 180)); // degrees longitude per meter
+                    
                     marker = L.rectangle([
-                        [location.lat - latOffset, location.lng - lngOffset],
-                        [location.lat + latOffset, location.lng + lngOffset]
+                        [location.lat - latOffset/2, location.lng - lngOffset/2],
+                        [location.lat + latOffset/2, location.lng + lngOffset/2]
                     ], options);
                 }
 
@@ -759,7 +833,12 @@
                             <label for="territory-${territory}" 
                                    class="flex-1 flex items-center justify-between p-3 rounded-lg cursor-pointer border-2 border-gray-200 hover:border-gray-300 transition-all">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-4 h-4 rounded" style="background-color: ${territoryColors[territory] || getTerritoryColor(territory)}"></div>
+                                    <input type="color" 
+                                           value="${territoryColors[territory] || getTerritoryColor(territory)}"
+                                           onchange="updateTerritoryColor('${territory}', this.value)"
+                                           onclick="event.stopPropagation()"
+                                           class="w-6 h-6 rounded cursor-pointer border-0"
+                                           title="Click to change color">
                                     <div>
                                         <p class="font-medium text-sm">${territory}</p>
                                         <p class="text-xs text-gray-500">${percentage}% of total</p>
@@ -855,6 +934,14 @@
             
             // Auto-save after reassignment
             saveToGoogleSheets();
+        }
+
+        // Update territory color
+        function updateTerritoryColor(territory, color) {
+            territoryColors[territory] = color;
+            updateMarkers();
+            // Save color preference to localStorage
+            localStorage.setItem('territoryColors', JSON.stringify(territoryColors));
         }
 
         // Clear selection
