@@ -631,38 +631,52 @@
                     break;
             }
             
-            // If value is 0 or null, return minimum size
-            if (!value || value === 0) return 6;
+            // Debug log to see values
+            console.log(`Location: ${location.name}, Metric: ${sizeMetric}, Value: ${value}`);
             
-            // Get all values for the selected metric to find min/max
+            // If value is 0, null, or NaN, return minimum size
+            if (!value || value === 0 || isNaN(value)) return 6;
+            
+            // Get all positive values for the selected metric
             const allValues = locations.map(loc => {
+                let val = 0;
                 switch(sizeMetric) {
-                    case '3 Yr Plan Mrkt Shr': return loc.planMrktShr || 0;
-                    case 'Dstar TPV': return loc.dstarTPV || 0;
-                    case 'PRUSA NNS': return loc.prusaNNS || 0;
-                    default: return 0;
+                    case '3 Yr Plan Mrkt Shr': 
+                        val = loc.planMrktShr || 0;
+                        break;
+                    case 'Dstar TPV': 
+                        val = loc.dstarTPV || 0;
+                        break;
+                    case 'PRUSA NNS': 
+                        val = loc.prusaNNS || 0;
+                        break;
                 }
-            }).filter(v => v > 0);
+                return val;
+            }).filter(v => v > 0 && !isNaN(v));
             
             if (allValues.length === 0) return 10;
             
             const maxValue = Math.max(...allValues);
             const minValue = Math.min(...allValues);
             
-            // Use logarithmic scale for better distribution
-            const logValue = Math.log(value + 1);
-            const logMax = Math.log(maxValue + 1);
-            const logMin = Math.log(minValue + 1);
+            console.log(`Range: ${minValue} to ${maxValue}`);
             
-            // Normalize between 0 and 1
-            const normalizedValue = (logValue - logMin) / (logMax - logMin);
+            // Linear scaling for better visibility
+            let normalizedValue;
+            if (maxValue === minValue) {
+                normalizedValue = 0.5;
+            } else {
+                normalizedValue = (value - minValue) / (maxValue - minValue);
+            }
             
-            // Scale between 6 and 30 pixels
+            // Scale between 6 and 25 pixels
             const minSize = 6;
-            const maxSize = 30;
+            const maxSize = 25;
             const size = minSize + (normalizedValue * (maxSize - minSize));
             
-            return Math.max(minSize, Math.min(maxSize, size));
+            console.log(`Normalized: ${normalizedValue}, Size: ${size}`);
+            
+            return size;
         }
 
         // Update markers
@@ -697,8 +711,8 @@
                 const options = {
                     radius: size,
                     fillColor: color,
-                    color: color,  // Changed from white/black to match fill color
-                    weight: isSelected ? 3 : 1,  // Reduced weight when not selected
+                    color: '#fff',  // Back to white borders
+                    weight: isSelected ? 2 : 1,  // Thinner borders (was 3 : 2)
                     opacity: 1,
                     fillOpacity: 0.8
                 };
