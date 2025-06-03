@@ -616,7 +616,7 @@
         // Get marker size based on metric
         function getMarkerSize(location) {
             const sizeMetric = document.getElementById('sizeMetric').value;
-            if (sizeMetric === 'none') return 10; // Increased base size from 8 to 10
+            if (sizeMetric === 'none') return 10; // Default size
             
             let value = 0;
             switch(sizeMetric) {
@@ -631,28 +631,38 @@
                     break;
             }
             
-            // Get all values for normalization
+            // If value is 0 or null, return minimum size
+            if (!value || value === 0) return 6;
+            
+            // Get all values for the selected metric to find min/max
             const allValues = locations.map(loc => {
                 switch(sizeMetric) {
-                    case '3 Yr Plan Mrkt Shr': return loc.planMrktShr;
-                    case 'Dstar TPV': return loc.dstarTPV;
-                    case 'PRUSA NNS': return loc.prusaNNS;
+                    case '3 Yr Plan Mrkt Shr': return loc.planMrktShr || 0;
+                    case 'Dstar TPV': return loc.dstarTPV || 0;
+                    case 'PRUSA NNS': return loc.prusaNNS || 0;
                     default: return 0;
                 }
             }).filter(v => v > 0);
             
-            if (allValues.length === 0 || value === 0) return 10;
+            if (allValues.length === 0) return 10;
             
             const maxValue = Math.max(...allValues);
             const minValue = Math.min(...allValues);
             
-            // Normalize value between 0 and 1
-            const normalizedValue = (value - minValue) / (maxValue - minValue);
+            // Use logarithmic scale for better distribution
+            const logValue = Math.log(value + 1);
+            const logMax = Math.log(maxValue + 1);
+            const logMin = Math.log(minValue + 1);
             
-            // Scale between 8 and 25 pixels
-            const minSize = 8;
-            const maxSize = 25;
-            return minSize + (normalizedValue * (maxSize - minSize));
+            // Normalize between 0 and 1
+            const normalizedValue = (logValue - logMin) / (logMax - logMin);
+            
+            // Scale between 6 and 30 pixels
+            const minSize = 6;
+            const maxSize = 30;
+            const size = minSize + (normalizedValue * (maxSize - minSize));
+            
+            return Math.max(minSize, Math.min(maxSize, size));
         }
 
         // Update markers
@@ -687,8 +697,8 @@
                 const options = {
                     radius: size,
                     fillColor: color,
-                    color: isSelected ? '#000' : '#fff',
-                    weight: isSelected ? 3 : 2,
+                    color: color,  // Changed from white/black to match fill color
+                    weight: isSelected ? 3 : 1,  // Reduced weight when not selected
                     opacity: 1,
                     fillOpacity: 0.8
                 };
