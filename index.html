@@ -429,21 +429,22 @@
             }).join('');
         }
 
-        // Find column index (search first 24 columns)
+        // Find column index (search all columns)
         function findColumnIndex(headers, searchTerms) {
             const searchTermsArray = Array.isArray(searchTerms) ? searchTerms : [searchTerms];
-            const maxCols = Math.min(headers.length, 24);
             
-            for (let i = 0; i < maxCols; i++) {
+            for (let i = 0; i < headers.length; i++) {
                 if (headers[i]) {
-                    const header = headers[i].toLowerCase();
+                    const header = headers[i].toString().toLowerCase().trim();
                     for (const term of searchTermsArray) {
-                        if (header.includes(term.toLowerCase())) {
+                        if (header === term.toLowerCase() || header.includes(term.toLowerCase())) {
+                            console.log(`Found "${term}" in column ${i} (${headers[i]})`);
                             return i;
                         }
                     }
                 }
             }
+            console.log(`Could not find columns for: ${searchTermsArray.join(', ')}`);
             return -1;
         }
 
@@ -484,7 +485,7 @@
             const headers = values[0];
             const rows = values.slice(1);
             
-            // Find column indices (search first 24 columns for name)
+            // Find column indices (search all columns)
             columnIndices = {
                 name: findColumnIndex(headers, ['name', 'account', 'location', 'store']),
                 licensee: findColumnIndex(headers, ['licensee', 'owner', 'operator']),
@@ -497,6 +498,9 @@
                 dstarTPV: findColumnIndex(headers, ['dstar tpv', 'dstar']),
                 prusaNNS: findColumnIndex(headers, ['prusa nns', 'prusa'])
             };
+            
+            console.log('Column indices found:', columnIndices);
+            console.log('Territory column is:', columnIndices.territory, '(0-based), which is column', columnIndices.territory + 1, 'in sheets');
             
             locations = rows
                 .filter(row => row[columnIndices.lat] && row[columnIndices.lng])
