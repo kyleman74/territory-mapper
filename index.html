@@ -937,12 +937,23 @@
             const newTerritory = document.getElementById('newTerritory').value;
             if (!newTerritory || selectedLocations.size === 0) return;
 
+            // Track which locations are being changed
+            const changedLocations = [];
+            
             locations = locations.map(loc => {
                 if (selectedLocations.has(loc.id)) {
+                    changedLocations.push({
+                        id: loc.id,
+                        name: loc.name,
+                        oldTerritory: loc.territory,
+                        newTerritory: newTerritory
+                    });
                     return { ...loc, territory: newTerritory };
                 }
                 return loc;
             });
+
+            console.log('Reassigning territories:', changedLocations);
 
             if (!territories.includes(newTerritory)) {
                 territories.push(newTerritory);
@@ -956,7 +967,7 @@
             updateSelectionUI();
             document.getElementById('newTerritory').value = '';
             
-            // Auto-save after reassignment
+            // Save to Google Sheets
             saveToGoogleSheets();
         }
 
