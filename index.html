@@ -97,6 +97,14 @@
                 Save to Sheet
             </button>
 
+            <button onclick="toggleManualMode()" id="manualModeBtn"
+                    class="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+                Manual Mode: ON
+            </button>
+
             <button onclick="toggleDrawingMode()" id="drawBtn"
                     class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,6 +255,7 @@
         let autoRefreshInterval = null;
         let autoRefreshEnabled = false;
         let isSaving = false; // Flag to prevent reloads during save
+        let pendingTerritoryChanges = null; // Store pending changes during save
 
         // Territory colors
         const DEFAULT_COLORS = [
@@ -357,25 +366,35 @@
 
         // Update sync status
         function updateSyncStatus(status, message) {
+            console.log(`SYNC STATUS: ${status} - ${message}`);
+            
             const syncStatus = document.getElementById('syncStatus');
+            if (!syncStatus) return;
+            
             const indicator = syncStatus.querySelector('.sync-indicator');
             const text = syncStatus.querySelector('span:last-child');
             
-            indicator.className = 'sync-indicator';
-            
-            switch(status) {
-                case 'loading':
-                    indicator.classList.add('sync-loading');
-                    break;
-                case 'success':
-                    indicator.classList.add('sync-success');
-                    break;
-                case 'error':
-                    indicator.classList.add('sync-error');
-                    break;
+            if (indicator) {
+                indicator.className = 'sync-indicator';
+                
+                switch(status) {
+                    case 'loading':
+                        indicator.classList.add('sync-loading');
+                        break;
+                    case 'success':
+                        indicator.classList.add('sync-success');
+                        break;
+                    case 'error':
+                        indicator.classList.add('sync-error');
+                        break;
+                }
             }
             
-            text.textContent = message;
+            if (text) {
+                text.textContent = message;
+            }
+            
+            // DO NOT trigger any reloads here!
         }
 
         // Toggle state filter dropdown
@@ -452,15 +471,15 @@
         }
 
         // Load data from Google Sheets
-        async function loadFromGoogleSheets() {
+        async function loadFromGoogleSheets(forceLoad = false) {
             // Don't reload if we're saving
-            if (isSaving) {
+            if (isSaving && !forceLoad) {
                 console.log('BLOCKED RELOAD - Save in progress');
                 return;
             }
             
             // Add a stack trace to see what's calling this
-            console.log('loadFromGoogleSheets called from:', new Error().stack);
+            console.trace('loadFromGoogleSheets called');
             
             updateSyncStatus('loading', 'Loading from Google Sheets...');
             
@@ -486,7 +505,7 @@
             } catch (error) {
                 console.error('Load error:', error);
                 updateSyncStatus('error', 'Failed to load');
-                alert('Error loading from Google Sheets. Check console for details.');
+                // Don't show alert on every error
             }
         }
 
@@ -956,8 +975,9 @@
             console.log('=== REASSIGN TERRITORY START ===');
             console.log('New territory:', newTerritory);
             console.log('Selected locations:', selectedLocations.size);
-            console.log('Auto-refresh enabled?', autoRefreshEnabled);
-            console.log('Active intervals:', autoRefreshInterval);
+            
+            // Set save flag IMMEDIATELY to block any reloads
+            isSaving = true;
             
             // Track which locations are being changed
             const changedLocations = [];
@@ -992,9 +1012,12 @@
             
             console.log('UI updated. Starting save...');
             
-            // Save to Google Sheets
+            // Save to Google Sheets - the save function will clear isSaving when done
             saveToGoogleSheets().then(() => {
                 console.log('=== REASSIGN TERRITORY COMPLETE ===');
+            }).catch(err => {
+                console.error('Save error in reassign:', err);
+                isSaving = false; // Clear flag on error
             });
         }
 
@@ -1013,15 +1036,64 @@
             updateSelectionUI();
         }
         
-        // Test function to verify save works
-        window.testSave = async function() {
-            console.log('TEST: Changing first location territory to "TEST-TERRITORY"');
-            if (locations.length > 0) {
-                locations[0].territory = 'TEST-TERRITORY';
-                await saveToGoogleSheets();
-                console.log('TEST: Save initiated. Check your sheet column O, row 2');
+        // Manual mode toggle
+        let manualMode = true; // Start in manual mode
+        function toggleManualMode() {
+            manualMode = !manualMode;
+            const btn = document.getElementById('manualModeBtn');
+            if (btn) {
+                btn.textContent = `Manual Mode: ${manualMode ? 'ON' : 'OFF'}`;
+                btn.classList.toggle('bg-purple-500', manualMode);
+                btn.classList.toggle('bg-gray-500', !manualMode);
             }
+            console.log('Manual mode:', manualMode);
         }
+        
+        // Test save directly to sheet
+        window.testDirectSave = async function() {
+            console.log('=== DIRECT SAVE TEST ===');
+            if (locations.length > 0) {
+                const testTerritory = 'DIRECT-TEST-' + Date.now();
+                locations[0].territory = testTerritory;
+                
+                const updates = [{
+                    row: locations[0].row,
+                    territory: testTerritory
+                }];
+                
+                console.log('Sending direct update:', updates);
+                
+                // Direct POST to Apps Script
+                const url = webAppUrl;
+                const data = {
+                    action: 'update',
+                    sheetName: SHEET_NAME,
+                    territoryColumn: 15,
+                    updates: updates
+                };
+                
+                console.log('POST to:', url);
+                console.log('Data:', data);
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        body: JSON.stringify(data)
+                    });
+                    
+                    console.log('Response sent. Check sheet row', locations[0].row, 'column O');
+                    console.log('Should show:', testTerritory);
+                    
+                    // Update local UI
+                    updateMarkers();
+                    updateStats();
+                    
+                } catch (err) {
+                    console.error('Direct save error:', err);
+                }
+            }
+        };
     </script>
 </body>
 </html>
