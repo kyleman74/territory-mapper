@@ -526,11 +526,11 @@
                 premise: findColumnIndex(headers, ['premise', 'on-premise', 'off-premise', 'type']),
                 state: findColumnIndex(headers, ['state', 'province']),
                 planMrktShr: findColumnIndex(headers, ['3 yr plan mrkt', '3 year plan', 'plan mrkt shr']),
-                dstarTPV: findColumnIndex(headers, ['dstar tpv', 'dstar']),
-                prusaNNS: findColumnIndex(headers, ['prusa nns', 'prusa']),
+                dstarTPV: findColumnIndex(headers, ['dstar tpv']),
+                prusaNNS: findColumnIndex(headers, ['prusa nns']),
                 original: findColumnIndex(headers, ['original', 'original terr']),
                 prusaNNSCol: findColumnIndex(headers, ['prusa nns']), // Column Q
-                threeYrNNS: findColumnIndex(headers, ['3 yr nns', '3yr nns']), // Column R
+                threeYrNNS: findColumnIndex(headers, ['3 yr plan nns', '3yr plan nns']), // Column R
                 dstarTPVNNS: findColumnIndex(headers, ['dstar tpv nns']) // Column S
             };
             
@@ -599,6 +599,7 @@
                 return;
             }
             
+            isSaving = true; // Set save flag
             updateSyncStatus('loading', 'Saving to Google Sheets...');
             
             try {
@@ -622,13 +623,17 @@
                 
                 updateSyncStatus('success', 'Saved successfully');
                 
-                // Reload to confirm changes
-                setTimeout(loadFromGoogleSheets, 1000);
+                // Wait a bit then reload to confirm changes
+                setTimeout(() => {
+                    isSaving = false; // Clear save flag
+                    loadFromGoogleSheets(true); // Force load
+                }, 1000);
                 
             } catch (error) {
                 console.error('Save error:', error);
                 updateSyncStatus('error', 'Failed to save');
                 alert('Error saving to Google Sheets. Check console for details.');
+                isSaving = false; // Clear save flag on error
             }
         }
 
@@ -815,7 +820,7 @@
                                 <div style="flex: 1; border-left: 1px solid #e5e7eb; padding-left: 10px;">
                                     <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Original:</strong> ${location.original || 'N/A'}</p>
                                     <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>PRUSA NNS:</strong> ${location.prusaNNSVal.toLocaleString()}</p>
-                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>3 Yr NNS:</strong> ${location.threeYrNNS.toLocaleString()}</p>
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>3 Yr Plan NNS:</strong> ${location.threeYrNNS.toLocaleString()}</p>
                                     <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Dstar TPV NNS:</strong> ${location.dstarTPVNNS.toLocaleString()}</p>
                                 </div>
                             </div>
@@ -824,10 +829,11 @@
                 `);
 
                 marker.on('click', function(e) {
-                    e.target.openPopup(); // Always open popup first
+                    // Always open popup first, regardless of mode
+                    e.target.openPopup();
                     
+                    // Then handle selection only if NOT in drawing mode
                     if (!drawingMode) {
-                        // Then handle selection
                         if (selectedLocations.has(location.id)) {
                             selectedLocations.delete(location.id);
                         } else {
