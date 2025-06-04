@@ -246,6 +246,7 @@
         let columnIndices = {};
         let autoRefreshInterval = null;
         let autoRefreshEnabled = false;
+        let isSaving = false; // Flag to prevent reloads during save
 
         // Territory colors
         const DEFAULT_COLORS = [
@@ -324,6 +325,7 @@
                 btn.classList.remove('bg-gray-200', 'text-gray-700');
                 btn.classList.add('bg-green-500', 'text-white');
                 text.textContent = 'Auto-refresh: ON (5 min)';
+                console.log('Auto-refresh ENABLED - will refresh every 5 minutes');
             } else {
                 // Stop auto-refresh
                 if (autoRefreshInterval) {
@@ -333,6 +335,7 @@
                 btn.classList.remove('bg-green-500', 'text-white');
                 btn.classList.add('bg-gray-200', 'text-gray-700');
                 text.textContent = 'Auto-refresh: OFF';
+                console.log('Auto-refresh DISABLED');
             }
         }
 
@@ -450,11 +453,14 @@
 
         // Load data from Google Sheets
         async function loadFromGoogleSheets() {
-            // Don't reload if we're in the middle of saving
-            if (document.getElementById('syncStatus').textContent.includes('Saving')) {
-                console.log('Skipping reload - save in progress');
+            // Don't reload if we're saving
+            if (isSaving) {
+                console.log('BLOCKED RELOAD - Save in progress');
                 return;
             }
+            
+            // Add a stack trace to see what's calling this
+            console.log('loadFromGoogleSheets called from:', new Error().stack);
             
             updateSyncStatus('loading', 'Loading from Google Sheets...');
             
@@ -994,6 +1000,16 @@
             selectedLocations.clear();
             updateMarkers();
             updateSelectionUI();
+        }
+        
+        // Test function to verify save works
+        window.testSave = async function() {
+            console.log('TEST: Changing first location territory to "TEST-TERRITORY"');
+            if (locations.length > 0) {
+                locations[0].territory = 'TEST-TERRITORY';
+                await saveToGoogleSheets();
+                console.log('TEST: Save initiated. Check your sheet column O, row 2');
+            }
         }
     </script>
 </body>
