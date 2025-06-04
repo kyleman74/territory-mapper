@@ -953,6 +953,12 @@
             const newTerritory = document.getElementById('newTerritory').value;
             if (!newTerritory || selectedLocations.size === 0) return;
 
+            console.log('=== REASSIGN TERRITORY START ===');
+            console.log('New territory:', newTerritory);
+            console.log('Selected locations:', selectedLocations.size);
+            console.log('Auto-refresh enabled?', autoRefreshEnabled);
+            console.log('Active intervals:', autoRefreshInterval);
+            
             // Track which locations are being changed
             const changedLocations = [];
             
@@ -961,6 +967,7 @@
                     changedLocations.push({
                         id: loc.id,
                         name: loc.name,
+                        row: loc.row,
                         oldTerritory: loc.territory,
                         newTerritory: newTerritory
                     });
@@ -969,7 +976,7 @@
                 return loc;
             });
 
-            console.log('Reassigning territories:', changedLocations);
+            console.log('Changed locations:', changedLocations);
 
             if (!territories.includes(newTerritory)) {
                 territories.push(newTerritory);
@@ -983,8 +990,12 @@
             updateSelectionUI();
             document.getElementById('newTerritory').value = '';
             
+            console.log('UI updated. Starting save...');
+            
             // Save to Google Sheets
-            saveToGoogleSheets();
+            saveToGoogleSheets().then(() => {
+                console.log('=== REASSIGN TERRITORY COMPLETE ===');
+            });
         }
 
         // Update territory color
