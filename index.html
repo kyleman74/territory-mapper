@@ -450,6 +450,12 @@
 
         // Load data from Google Sheets
         async function loadFromGoogleSheets() {
+            // Don't reload if we're in the middle of saving
+            if (document.getElementById('syncStatus').textContent.includes('Saving')) {
+                console.log('Skipping reload - save in progress');
+                return;
+            }
+            
             updateSyncStatus('loading', 'Loading from Google Sheets...');
             
             try {
