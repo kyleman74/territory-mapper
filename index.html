@@ -527,7 +527,11 @@
                 state: findColumnIndex(headers, ['state', 'province']),
                 planMrktShr: findColumnIndex(headers, ['3 yr plan mrkt', '3 year plan', 'plan mrkt shr']),
                 dstarTPV: findColumnIndex(headers, ['dstar tpv', 'dstar']),
-                prusaNNS: findColumnIndex(headers, ['prusa nns', 'prusa'])
+                prusaNNS: findColumnIndex(headers, ['prusa nns', 'prusa']),
+                original: findColumnIndex(headers, ['original', 'original terr']),
+                prusaNNSCol: findColumnIndex(headers, ['prusa nns']), // Column Q
+                threeYrNNS: findColumnIndex(headers, ['3 yr nns', '3yr nns']), // Column R
+                dstarTPVNNS: findColumnIndex(headers, ['dstar tpv nns']) // Column S
             };
             
             console.log('Column indices found:', columnIndices);
@@ -547,7 +551,11 @@
                     state: columnIndices.state >= 0 ? row[columnIndices.state] : '',
                     planMrktShr: columnIndices.planMrktShr >= 0 ? parseFloat(row[columnIndices.planMrktShr]) || 0 : 0,
                     dstarTPV: columnIndices.dstarTPV >= 0 ? parseFloat(row[columnIndices.dstarTPV]) || 0 : 0,
-                    prusaNNS: columnIndices.prusaNNS >= 0 ? parseFloat(row[columnIndices.prusaNNS]) || 0 : 0
+                    prusaNNS: columnIndices.prusaNNS >= 0 ? parseFloat(row[columnIndices.prusaNNS]) || 0 : 0,
+                    original: columnIndices.original >= 0 ? row[columnIndices.original] : '',
+                    prusaNNSVal: columnIndices.prusaNNSCol >= 0 ? parseFloat(row[columnIndices.prusaNNSCol]) || 0 : 0,
+                    threeYrNNS: columnIndices.threeYrNNS >= 0 ? parseFloat(row[columnIndices.threeYrNNS]) || 0 : 0,
+                    dstarTPVNNS: columnIndices.dstarTPVNNS >= 0 ? parseFloat(row[columnIndices.dstarTPVNNS]) || 0 : 0
                 }));
 
             // Extract unique values
@@ -786,27 +794,40 @@
                             value = location.prusaNNS;
                             break;
                     }
-                    sizeInfo = `<p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>${sizeMetric}:</strong> $${value.toLocaleString()}</p>`;
+                    sizeInfo = `<p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>${sizeMetric}:</strong> ${value.toLocaleString()}</p>`;
                 }
 
                 marker.bindPopup(`
-                    <div style="padding: 12px; min-width: 200px;">
+                    <div style="padding: 12px; min-width: 280px;">
                         ${location.licensee ? `<h3 style="font-weight: 700; margin: 0 0 8px 0; font-size: 1.1rem; color: #1f2937;">${location.licensee}</h3>` : ''}
                         <h4 style="font-weight: 600; margin: 0 0 6px 0; color: #4b5563;">${location.name}</h4>
                         <div style="border-top: 1px solid #e5e7eb; margin: 6px 0; padding-top: 6px;">
-                            <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Territory:</strong> ${location.territory}</p>
-                            <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Type:</strong> ${premiseLabel}</p>
-                            <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>State:</strong> ${location.state || 'N/A'}</p>
-                            ${sizeInfo}
-                            <p style="margin: 0; font-size: 0.75rem; color: #6b7280;">
-                                ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}
-                            </p>
+                            <div style="display: flex; justify-content: space-between; gap: 20px;">
+                                <div style="flex: 1;">
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Territory:</strong> ${location.territory}</p>
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Type:</strong> ${premiseLabel}</p>
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>State:</strong> ${location.state || 'N/A'}</p>
+                                    ${sizeInfo}
+                                    <p style="margin: 0; font-size: 0.75rem; color: #6b7280;">
+                                        ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}
+                                    </p>
+                                </div>
+                                <div style="flex: 1; border-left: 1px solid #e5e7eb; padding-left: 10px;">
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Original:</strong> ${location.original || 'N/A'}</p>
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>PRUSA NNS:</strong> ${location.prusaNNSVal.toLocaleString()}</p>
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>3 Yr NNS:</strong> ${location.threeYrNNS.toLocaleString()}</p>
+                                    <p style="margin: 0 0 3px 0; font-size: 0.875rem;"><strong>Dstar TPV NNS:</strong> ${location.dstarTPVNNS.toLocaleString()}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `);
 
-                marker.on('click', function() {
+                marker.on('click', function(e) {
+                    e.target.openPopup(); // Always open popup first
+                    
                     if (!drawingMode) {
+                        // Then handle selection
                         if (selectedLocations.has(location.id)) {
                             selectedLocations.delete(location.id);
                         } else {
