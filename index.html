@@ -256,6 +256,7 @@
         let autoRefreshEnabled = false;
         let isSaving = false; // Flag to prevent reloads during save
         let pendingTerritoryChanges = null; // Store pending changes during save
+        let openPopupLocationId = null; // Track which popup is open
 
         // Territory colors
         const DEFAULT_COLORS = [
@@ -292,7 +293,21 @@
                 const layer = e.layer;
                 const bounds = layer.getBounds();
                 
+                // Close any open popup before selection
+                map.closePopup();
+                openPopupLocationId = null;
+                
+                // Only select VISIBLE locations
                 locations.forEach(loc => {
+                    // Apply the same filters as updateMarkers()
+                    if (selectedStates.size > 0 && !selectedStates.has(loc.state)) return;
+                    if (!selectedTerritories.has(loc.territory)) return;
+                    if (premiseFilter !== 'all') {
+                        if (premiseFilter === 'on' && loc.premise !== 'on') return;
+                        if (premiseFilter === 'off' && loc.premise !== 'off') return;
+                    }
+                    
+                    // If location passes all filters and is within bounds, select it
                     const point = L.latLng(loc.lat, loc.lng);
                     if (bounds.contains(point)) {
                         selectedLocations.add(loc.id);
@@ -312,6 +327,11 @@
                 if (locations.length > 0) {
                     updateMarkers();
                 }
+            });
+            
+            // Track when clicking on map (not markers) closes popups
+            map.on('click', function(e) {
+                openPopupLocationId = null;
             });
 
             // Close dropdowns when clicking outside
@@ -460,13 +480,13 @@
                     const header = headers[i].toString().toLowerCase().trim();
                     for (const term of searchTermsArray) {
                         if (header === term.toLowerCase() || header.includes(term.toLowerCase())) {
-                            console.log(`Found "${term}" in column ${i} (${headers[i]})`);
+                            console.log(`Found column "${searchTermsArray.join('/')}" at index ${i}: "${headers[i]}"`);
                             return i;
                         }
                     }
                 }
             }
-            console.log(`Could not find columns for: ${searchTermsArray.join(', ')}`);
+            console.warn(`Could not find column for: ${searchTermsArray.join(', ')}`);
             return -1;
         }
 
@@ -537,26 +557,38 @@
             console.log('Column indices found:', columnIndices);
             console.log('Territory column is:', columnIndices.territory, '(0-based), which is column', columnIndices.territory + 1, 'in sheets');
             
+            // Process locations - keep track of actual row numbers
+            let locationCount = 0;
             locations = rows
-                .filter(row => row[columnIndices.lat] && row[columnIndices.lng])
-                .map((row, index) => ({
-                    id: index,
-                    row: index + 2, // Google Sheets row number (1-indexed, plus header)
-                    name: row[columnIndices.name] || `Location ${index + 1}`,
-                    licensee: columnIndices.licensee >= 0 ? row[columnIndices.licensee] : '',
-                    lat: parseFloat(row[columnIndices.lat]),
-                    lng: parseFloat(row[columnIndices.lng]),
-                    territory: row[columnIndices.territory] || 'Unassigned',
-                    premise: columnIndices.premise >= 0 ? detectPremiseType(row[columnIndices.premise]) : 'unknown',
-                    state: columnIndices.state >= 0 ? row[columnIndices.state] : '',
-                    planMrktShr: columnIndices.planMrktShr >= 0 ? parseFloat(row[columnIndices.planMrktShr]) || 0 : 0,
-                    dstarTPV: columnIndices.dstarTPV >= 0 ? parseFloat(row[columnIndices.dstarTPV]) || 0 : 0,
-                    prusaNNS: columnIndices.prusaNNS >= 0 ? parseFloat(row[columnIndices.prusaNNS]) || 0 : 0,
-                    original: columnIndices.original >= 0 ? row[columnIndices.original] : '',
-                    prusaNNSVal: columnIndices.prusaNNSCol >= 0 ? parseFloat(row[columnIndices.prusaNNSCol]) || 0 : 0,
-                    threeYrNNS: columnIndices.threeYrNNS >= 0 ? parseFloat(row[columnIndices.threeYrNNS]) || 0 : 0,
-                    dstarTPVNNS: columnIndices.dstarTPVNNS >= 0 ? parseFloat(row[columnIndices.dstarTPVNNS]) || 0 : 0
-                }));
+                .map((row, index) => {
+                    // Only process rows with valid lat/lng
+                    if (!row[columnIndices.lat] || !row[columnIndices.lng]) {
+                        return null;
+                    }
+                    
+                    locationCount++;
+                    return {
+                        row: index + 2, // Google Sheets row number (1-indexed, plus header)
+                        name: row[columnIndices.name] || `Location ${locationCount}`,
+                        licensee: columnIndices.licensee >= 0 ? row[columnIndices.licensee] : '',
+                        lat: parseFloat(row[columnIndices.lat]),
+                        lng: parseFloat(row[columnIndices.lng]),
+                        territory: row[columnIndices.territory] || 'Unassigned',
+                        premise: columnIndices.premise >= 0 ? detectPremiseType(row[columnIndices.premise]) : 'unknown',
+                        state: columnIndices.state >= 0 ? row[columnIndices.state] : '',
+                        planMrktShr: columnIndices.planMrktShr >= 0 ? parseFloat(row[columnIndices.planMrktShr]) || 0 : 0,
+                        dstarTPV: columnIndices.dstarTPV >= 0 ? parseFloat(row[columnIndices.dstarTPV]) || 0 : 0,
+                        prusaNNS: columnIndices.prusaNNS >= 0 ? parseFloat(row[columnIndices.prusaNNS]) || 0 : 0,
+                        original: columnIndices.original >= 0 ? row[columnIndices.original] : '',
+                        prusaNNSVal: columnIndices.prusaNNSCol >= 0 ? parseFloat(row[columnIndices.prusaNNSCol]) || 0 : 0,
+                        threeYrNNS: columnIndices.threeYrNNS >= 0 ? parseFloat(row[columnIndices.threeYrNNS]) || 0 : 0,
+                        dstarTPVNNS: columnIndices.dstarTPVNNS >= 0 ? parseFloat(row[columnIndices.dstarTPVNNS]) || 0 : 0
+                    };
+                })
+                .filter(loc => loc !== null) // Remove null entries
+                .map((loc, index) => ({ ...loc, id: index })); // Add sequential IDs after filtering
+            
+            console.log(`Processed ${locations.length} locations from ${rows.length} rows`);
 
             // Extract unique values
             territories = [...new Set(locations.map(loc => loc.territory))];
@@ -608,6 +640,8 @@
                     row: loc.row,
                     territory: loc.territory
                 }));
+                
+                console.log(`Saving ${values.length} territory updates to Google Sheets`);
                 
                 const response = await fetch(webAppUrl, {
                     method: 'POST',
@@ -829,18 +863,49 @@
                 `);
 
                 marker.on('click', function(e) {
-                    // Always open popup first, regardless of mode
+                    // Stop propagation to prevent map click event
+                    L.DomEvent.stopPropagation(e);
+                    
+                    // Track that this popup is open
+                    openPopupLocationId = location.id;
+                    
+                    // Open popup
                     e.target.openPopup();
                     
-                    // Then handle selection only if NOT in drawing mode
+                    // Handle selection only if NOT in drawing mode
                     if (!drawingMode) {
+                        // Toggle selection
                         if (selectedLocations.has(location.id)) {
                             selectedLocations.delete(location.id);
                         } else {
                             selectedLocations.add(location.id);
                         }
-                        updateMarkers();
+                        
+                        // Update only the visual state of this marker without recreating all markers
+                        const isNowSelected = selectedLocations.has(location.id);
+                        
+                        // For circle markers
+                        if (marker.setStyle) {
+                            marker.setStyle({
+                                weight: isNowSelected ? 2 : 1
+                            });
+                        }
+                        
+                        // For rectangles (which don't have setStyle in older Leaflet)
+                        if (marker._path) {
+                            marker._path.setAttribute('stroke-width', isNowSelected ? 2 : 1);
+                        }
+                        
                         updateSelectionUI();
+                        
+                        // Don't call updateMarkers() here - it destroys the popup!
+                    }
+                });
+                
+                // Track when popup closes
+                marker.on('popupclose', function() {
+                    if (openPopupLocationId === location.id) {
+                        openPopupLocationId = null;
                     }
                 });
 
@@ -849,6 +914,11 @@
             });
 
             updateLocationCount();
+            
+            // Restore open popup if there was one
+            if (openPopupLocationId !== null && markers[openPopupLocationId]) {
+                markers[openPopupLocationId].openPopup();
+            }
         }
 
         // Territory color
@@ -1032,6 +1102,8 @@
             }
 
             selectedLocations.clear();
+            map.closePopup();
+            openPopupLocationId = null;
             updateUI();
             updateMarkers();
             updateSelectionUI();
@@ -1059,6 +1131,8 @@
         // Clear selection
         function clearSelection() {
             selectedLocations.clear();
+            map.closePopup();
+            openPopupLocationId = null;
             updateMarkers();
             updateSelectionUI();
         }
