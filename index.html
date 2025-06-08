@@ -88,7 +88,8 @@
         const SHEET_ID = '10wyY1JClMR5eML19dZSjEekt5tTYLy_wYGYpAHjxAck';
         const SHEET_NAME = 'TerritoryData'; // This matches your tab name
         const API_KEY = 'AIzaSyCJ8hlXwXjYSnVv3cRLkuAti0jp0yORUNI'; // Public API key for reading
-        OAUTH_CLIENT_ID = '138611417996-g9r61ue9crbjho29glj56qe0majnrhts.apps.googleusercontent.com';
+        const OAUTH_CLIENT_ID = '138611417996-g9r61ue9crbjho29glj56qe0majnrhts.apps.googleusercontent.com';
+        const SCRIPT_ID = '19dm5jxvEeE0WEHX1vPbCX8F7Gw89dBLorXhntAKo5PVuqAbBOf4ag-cM';
     </script>
 
     <div class="flex flex-col h-screen bg-gray-50">
@@ -324,7 +325,7 @@
         function initGoogleOAuth() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: OAUTH_CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/script.external_request',
+                scope: 'https://www.googleapis.com/auth/script.external_request https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/spreadsheets',                
                 callback: (tokenResponse) => {
                     if (tokenResponse.error) {
                         console.error('Token error:', tokenResponse);
@@ -815,7 +816,7 @@
                     initGoogleOAuth();
                 }
                 tokenClient.requestAccessToken();
-                return; // The callback will resume this function
+                return;
             }
 
             isSaving = true; // Set save flag
@@ -830,35 +831,57 @@
 
                 console.log(`Saving ${values.length} territory updates to Google Sheets`);
 
-                const response = await fetch(webAppUrl, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        action: 'update',
+                const requestBody = {
+                    function: 'updateTerritories',
+                    parameters: [{
                         sheetName: 'TerritoryData',
                         territoryColumn: 15,
                         updates: values
-                    })
+                    }],
+                    devMode: true
+                };
+
+                console.log('++++', accessToken, SCRIPT_ID, requestBody);
+
+                const res = await fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
                 });
 
-                if (response.status === 302) {
-                    const location = response.headers.get('Location');
-                    if (location) {
-                        console.log('Redirected to:', location);
-                        // Optionally, follow the redirect
-                        const redirectedResponse = await fetch(location);
-                        console.log('Redirected response:', await redirectedResponse.text());
-                    }
-                } else if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                } else {
-                    const data = await response.json();
-                    console.log('Script executed successfully:', data);
-                }
+                const data = await res.json();
+                // const response = await fetch(webAppUrl, {
+                //     method: 'POST',
+                //     // mode: 'no-cors',
+                //     headers: {
+                //         'Authorization': `Bearer ${accessToken}`,
+                //         'Content-Type': 'application/json'
+                //     },
+                //     body: JSON.stringify({
+                //         action: 'update',
+                //         sheetName: 'TerritoryData',
+                //         territoryColumn: 15,
+                //         updates: values
+                //     })
+                // });
+
+                // if (response.status === 302) {
+                //     const location = response.headers.get('Location');
+                //     if (location) {
+                //         console.log('Redirected to:', location);
+                //         // Optionally, follow the redirect
+                //         const redirectedResponse = await fetch(location);
+                //         console.log('Redirected response:', await redirectedResponse.text());
+                //     }
+                // } else if (!response.ok) {
+                //     throw new Error(`HTTP error! status: ${response.status}`);
+                // } else {
+                //     const data = await response.json();
+                //     console.log('Script executed successfully:', data);
+                // }
 
                 updateSyncStatus('success', 'Saved successfully');
 
