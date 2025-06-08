@@ -89,7 +89,7 @@
         const SHEET_NAME = 'TerritoryData'; // This matches your tab name
         const API_KEY = 'AIzaSyCJ8hlXwXjYSnVv3cRLkuAti0jp0yORUNI'; // Public API key for reading
         const OAUTH_CLIENT_ID = '138611417996-g9r61ue9crbjho29glj56qe0majnrhts.apps.googleusercontent.com';
-        const SCRIPT_ID = '19dm5jxvEeE0WEHX1vPbCX8F7Gw89dBLorXhntAKo5PVuqAbBOf4ag-cM';
+        const SCRIPT_ID = 'AKfycby_ros-mri3x6_9stVTyiNXzYRhTbCo2KGsx5OgwYY7c72q4KhBxrkKdtqWaQ64wvTc';
     </script>
 
     <div class="flex flex-col h-screen bg-gray-50">
@@ -325,7 +325,7 @@
         function initGoogleOAuth() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: OAUTH_CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/script.external_request https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/spreadsheets',                
+                scope: 'https://www.googleapis.com/auth/script.external_request https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.scriptapp https://www.googleapis.com/auth/spreadsheets',             
                 callback: (tokenResponse) => {
                     if (tokenResponse.error) {
                         console.error('Token error:', tokenResponse);
@@ -333,7 +333,7 @@
                         return;
                     }
                     accessToken = tokenResponse.access_token;
-                    saveToGoogleSheets();  // Continue saving after auth
+                    saveToGoogleSheets();
                 }
             });
         }
@@ -454,8 +454,7 @@
         // Setup Google Apps Script Web App for writing
         function setupGoogleSheetsWebApp() {
             // Your deployed web app URL
-            // webAppUrl = 'https://script.google.com/macros/s/AKfycbzKxPjrxHFUkjEOZWvZJLUs4mZUROX_d95Uo6nxZIplwZLprS0ALrgFKK8CaNJFwx_Rcg/exec';
-            webAppUrl = 'https://script.google.com/macros/s/AKfycbyIqY-jIdal8uYkDxvy5EnDnYk6yU_IpurwTfvP52nQg6yRis4a1BUiFGU5KxO54EmtJg/exec';
+            webAppUrl = 'https://script.google.com/macros/s/AKfycbzKxPjrxHFUkjEOZWvZJLUs4mZUROX_d95Uo6nxZIplwZLprS0ALrgFKK8CaNJFwx_Rcg/exec';            
         }
 
         // Update sync status
@@ -841,8 +840,6 @@
                     devMode: true
                 };
 
-                console.log('++++', accessToken, SCRIPT_ID, requestBody);
-
                 const res = await fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
                     method: 'POST',
                     headers: {
@@ -853,9 +850,10 @@
                 });
 
                 const data = await res.json();
+
                 // const response = await fetch(webAppUrl, {
                 //     method: 'POST',
-                //     // mode: 'no-cors',
+                //     mode: 'no-cors',
                 //     headers: {
                 //         'Authorization': `Bearer ${accessToken}`,
                 //         'Content-Type': 'application/json'
