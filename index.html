@@ -1,24 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sales Territory Mapper - Google Sheets Connected</title>
-    
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
     <style>
-        #map { height: 100%; width: 100%; }
-        .leaflet-popup-content { margin: 0; }
-        .territory-checkbox:checked + label {
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .leaflet-popup-content {
+            margin: 0;
+        }
+
+        .territory-checkbox:checked+label {
             background-color: #E0E7FF;
             border-color: #6366F1;
         }
+
         .sync-indicator {
             display: inline-block;
             width: 8px;
@@ -26,27 +37,50 @@
             border-radius: 50%;
             margin-right: 8px;
         }
-        .sync-success { background-color: #10B981; }
-        .sync-loading { background-color: #F59E0B; animation: pulse 1s infinite; }
-        .sync-error { background-color: #EF4444; }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+
+        .sync-success {
+            background-color: #10B981;
         }
+
+        .sync-loading {
+            background-color: #F59E0B;
+            animation: pulse 1s infinite;
+        }
+
+        .sync-error {
+            background-color: #EF4444;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
         .state-select {
             max-height: 200px;
             overflow-y: auto;
         }
+
         .state-checkbox {
             display: none;
         }
-        .state-checkbox:checked + label {
+
+        .state-checkbox:checked+label {
             background-color: #E0E7FF;
             border-color: #6366F1;
         }
     </style>
 </head>
+
 <body class="m-0 p-0 font-sans">
     <!-- Google Sheets Configuration -->
     <script>
@@ -54,6 +88,7 @@
         const SHEET_ID = '10wyY1JClMR5eML19dZSjEekt5tTYLy_wYGYpAHjxAck';
         const SHEET_NAME = 'TerritoryData'; // This matches your tab name
         const API_KEY = 'AIzaSyCJ8hlXwXjYSnVv3cRLkuAti0jp0yORUNI'; // Public API key for reading
+        OAUTH_CLIENT_ID = '138611417996-g9r61ue9crbjho29glj56qe0majnrhts.apps.googleusercontent.com';
     </script>
 
     <div class="flex flex-col h-screen bg-gray-50">
@@ -73,72 +108,83 @@
 
         <!-- Toolbar -->
         <div class="bg-white px-6 py-3 border-b flex items-center gap-4 flex-wrap">
-            <button onclick="loadFromGoogleSheets()" 
-                    class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+            <button onclick="loadFromGoogleSheets()"
+                class="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                    </path>
                 </svg>
                 Refresh from Sheet
             </button>
 
             <button onclick="toggleAutoRefresh()" id="autoRefreshBtn"
-                    class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
                 <span id="autoRefreshText">Auto-refresh: OFF</span>
             </button>
 
-            <button onclick="saveToGoogleSheets()" 
-                    class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+            <button onclick="saveToGoogleSheets()"
+                class="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                    </path>
                 </svg>
                 Save to Sheet
             </button>
 
             <button onclick="toggleManualMode()" id="manualModeBtn"
-                    class="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
+                class="flex items-center gap-2 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z">
+                    </path>
                 </svg>
                 Manual Mode: ON
             </button>
 
             <button onclick="toggleDrawingMode()" id="drawBtn"
-                    class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                class="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z">
+                    </path>
                 </svg>
                 <span id="drawBtnText">Select Mode</span>
             </button>
 
-            <select id="premiseFilter" onchange="filterByPremise()" 
-                    class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select id="premiseFilter" onchange="filterByPremise()"
+                class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="all">All Locations</option>
                 <option value="on">On Premise Only</option>
                 <option value="off">Off Premise Only</option>
             </select>
 
             <div class="relative">
-                <button onclick="toggleStateFilter()" 
-                        class="flex items-center gap-2 px-3 py-2 border rounded-lg hover:bg-gray-50">
+                <button onclick="toggleStateFilter()"
+                    class="flex items-center gap-2 px-3 py-2 border rounded-lg hover:bg-gray-50">
                     <span>States</span>
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                     </svg>
                 </button>
-                <div id="stateFilterDropdown" class="hidden absolute top-full mt-1 bg-white border rounded-lg shadow-lg z-50 w-48">
+                <div id="stateFilterDropdown"
+                    class="hidden absolute top-full mt-1 bg-white border rounded-lg shadow-lg z-50 w-48">
                     <div class="p-2">
                         <button onclick="selectAllStates()" class="text-xs text-blue-600 hover:underline">All</button>
-                        <button onclick="selectNoStates()" class="ml-2 text-xs text-blue-600 hover:underline">None</button>
+                        <button onclick="selectNoStates()"
+                            class="ml-2 text-xs text-blue-600 hover:underline">None</button>
                     </div>
                     <div id="stateList" class="state-select p-2 border-t"></div>
                 </div>
             </div>
 
-            <select id="sizeMetric" onchange="updateMarkers()" 
-                    class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <select id="sizeMetric" onchange="updateMarkers()"
+                class="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="none">Size: Default</option>
                 <option value="3 Yr Plan Mrkt Shr">Size: 3 Yr Plan Mrkt Shr</option>
                 <option value="Dstar TPV">Size: Dstar TPV</option>
@@ -148,28 +194,30 @@
             <span id="locationCount" class="text-sm text-gray-600"></span>
 
             <div class="ml-auto">
-                <a href="https://docs.google.com/spreadsheets/d/10wyY1JClMR5eML19dZSjEekt5tTYLy_wYGYpAHjxAck/edit" 
-                   target="_blank"
-                   class="text-sm text-blue-600 hover:underline">
+                <a href="https://docs.google.com/spreadsheets/d/10wyY1JClMR5eML19dZSjEekt5tTYLy_wYGYpAHjxAck/edit"
+                    target="_blank" class="text-sm text-blue-600 hover:underline">
                     Open Google Sheet →
                 </a>
             </div>
 
             <div id="selectionTools" class="hidden items-center gap-2 bg-yellow-50 px-4 py-2 rounded-lg">
                 <span id="selectedCount" class="text-sm font-medium text-gray-700"></span>
-                <input type="text" id="newTerritory" placeholder="Territory name" 
-                       class="px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500" />
+                <input type="text" id="newTerritory" placeholder="Territory name"
+                    class="px-3 py-1 border rounded focus:outline-none focus:ring-2 focus:ring-orange-500" />
                 <datalist id="territories"></datalist>
-                <button onclick="reassignTerritory()" 
-                        class="flex items-center gap-1 px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors">
+                <button onclick="reassignTerritory()"
+                    class="flex items-center gap-1 px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                        </path>
                     </svg>
                     Reassign
                 </button>
                 <button onclick="clearSelection()" class="p-1 text-gray-500 hover:text-gray-700">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12">
+                        </path>
                     </svg>
                 </button>
             </div>
@@ -180,7 +228,7 @@
             <div id="sidebar" class="w-80 bg-white border-r overflow-y-auto">
                 <div class="p-4">
                     <h3 class="font-semibold text-gray-800 mb-4">Territory Summary</h3>
-                    
+
                     <div class="mb-6 p-4 bg-gray-50 rounded-lg">
                         <div class="grid grid-cols-2 gap-4 text-sm">
                             <div>
@@ -196,10 +244,12 @@
 
                     <!-- Territory Filter Controls -->
                     <div class="mb-4 flex gap-2">
-                        <button onclick="selectAllTerritories()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">
+                        <button onclick="selectAllTerritories()"
+                            class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">
                             Select All
                         </button>
-                        <button onclick="selectNoneTerritories()" class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">
+                        <button onclick="selectNoneTerritories()"
+                            class="text-xs px-2 py-1 bg-gray-100 rounded hover:bg-gray-200">
                             Select None
                         </button>
                     </div>
@@ -211,14 +261,15 @@
             <!-- Map -->
             <div class="flex-1 relative">
                 <div id="map"></div>
-                
-                <div id="drawingModeInfo" class="hidden absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-[1000] max-w-xs">
+
+                <div id="drawingModeInfo"
+                    class="hidden absolute top-4 right-4 bg-white p-4 rounded-lg shadow-lg z-[1000] max-w-xs">
                     <h4 class="font-semibold text-purple-700 mb-2">Drawing Mode Active</h4>
                     <p class="text-sm text-gray-600">
                         Use the polygon or rectangle tools to select multiple locations at once.
                     </p>
                 </div>
-                
+
                 <div id="loadingPrompt" class="absolute inset-0 flex items-center justify-center bg-gray-100">
                     <div class="text-center">
                         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -266,10 +317,30 @@
             '#74B9FF', '#A29BFE', '#81ECEC', '#FD79A8', '#FDCB6E'
         ];
 
+        let tokenClient;  // Declare globally
+        let accessToken = null;
+
+        // Call this once on page load
+        function initGoogleOAuth() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: OAUTH_CLIENT_ID,
+                scope: 'https://www.googleapis.com/auth/script.external_request',
+                callback: (tokenResponse) => {
+                    if (tokenResponse.error) {
+                        console.error('Token error:', tokenResponse);
+                        alert('OAuth error occurred. Cannot save to Google Sheets.');
+                        return;
+                    }
+                    accessToken = tokenResponse.access_token;
+                    saveToGoogleSheets();  // Continue saving after auth
+                }
+            });
+        }
+
         // Initialize map
         function initMap() {
             map = L.map('map').setView([39.8283, -98.5795], 4);
-            
+
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
@@ -289,14 +360,14 @@
                 edit: false
             });
 
-            map.on('draw:created', function(e) {
+            map.on('draw:created', function (e) {
                 const layer = e.layer;
                 const bounds = layer.getBounds();
-                
+
                 // Close any open popup before selection
                 map.closePopup();
                 openPopupLocationId = null;
-                
+
                 // Only select VISIBLE locations
                 locations.forEach(loc => {
                     // Apply the same filters as updateMarkers()
@@ -306,36 +377,36 @@
                         if (premiseFilter === 'on' && loc.premise !== 'on') return;
                         if (premiseFilter === 'off' && loc.premise !== 'off') return;
                     }
-                    
+
                     // If location passes all filters and is within bounds, select it
                     const point = L.latLng(loc.lat, loc.lng);
                     if (bounds.contains(point)) {
                         selectedLocations.add(loc.id);
                     }
                 });
-                
+
                 updateMarkers();
                 updateSelectionUI();
-                
+
                 setTimeout(() => {
                     drawnItems.removeLayer(layer);
                 }, 500);
             });
 
             // Redraw markers on zoom to maintain square sizes
-            map.on('zoomend', function() {
+            map.on('zoomend', function () {
                 if (locations.length > 0) {
                     updateMarkers();
                 }
             });
-            
+
             // Track when clicking on map (not markers) closes popups
-            map.on('click', function(e) {
+            map.on('click', function (e) {
                 openPopupLocationId = null;
             });
 
             // Close dropdowns when clicking outside
-            document.addEventListener('click', function(e) {
+            document.addEventListener('click', function (e) {
                 if (!e.target.closest('.relative')) {
                     document.getElementById('stateFilterDropdown').classList.add('hidden');
                 }
@@ -347,7 +418,7 @@
             autoRefreshEnabled = !autoRefreshEnabled;
             const btn = document.getElementById('autoRefreshBtn');
             const text = document.getElementById('autoRefreshText');
-            
+
             if (autoRefreshEnabled) {
                 // Start auto-refresh every 5 minutes
                 autoRefreshInterval = setInterval(loadFromGoogleSheets, 300000);
@@ -369,11 +440,12 @@
         }
 
         // Initialize app
-        window.onload = function() {
+        window.onload = function () {
+            initGoogleOAuth();
             initMap();
             setupGoogleSheetsWebApp();
             loadFromGoogleSheets();
-            
+
             // Don't auto-refresh by default to save API quota
             // User can enable it manually if needed
         };
@@ -388,17 +460,17 @@
         // Update sync status
         function updateSyncStatus(status, message) {
             console.log(`SYNC STATUS: ${status} - ${message}`);
-            
+
             const syncStatus = document.getElementById('syncStatus');
             if (!syncStatus) return;
-            
+
             const indicator = syncStatus.querySelector('.sync-indicator');
             const text = syncStatus.querySelector('span:last-child');
-            
+
             if (indicator) {
                 indicator.className = 'sync-indicator';
-                
-                switch(status) {
+
+                switch (status) {
                     case 'loading':
                         indicator.classList.add('sync-loading');
                         break;
@@ -410,11 +482,11 @@
                         break;
                 }
             }
-            
+
             if (text) {
                 text.textContent = message;
             }
-            
+
             // DO NOT trigger any reloads here!
         }
 
@@ -475,7 +547,7 @@
         // Find column index (search all columns)
         function findColumnIndex(headers, searchTerms) {
             const searchTermsArray = Array.isArray(searchTerms) ? searchTerms : [searchTerms];
-            
+
             for (let i = 0; i < headers.length; i++) {
                 if (headers[i]) {
                     const header = headers[i].toString().toLowerCase().trim();
@@ -498,31 +570,31 @@
                 console.log('BLOCKED RELOAD - Save in progress');
                 return;
             }
-            
+
             // Add a stack trace to see what's calling this
             console.trace('loadFromGoogleSheets called');
-            
+
             updateSyncStatus('loading', 'Loading from Google Sheets...');
-            
+
             try {
                 const range = encodeURIComponent(`${SHEET_NAME}!A:AA`); // Encode the range properly
                 const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?key=${API_KEY}`;
-                
+
                 console.log('Fetching from URL:', url); // Debug log
-                
+
                 const response = await fetch(url);
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('API Error:', errorText);
                     throw new Error('Failed to load data');
                 }
-                
+
                 const data = await response.json();
                 processGoogleSheetsData(data.values);
-                
+
                 updateSyncStatus('success', 'Loaded successfully');
                 document.getElementById('loadingPrompt').classList.add('hidden');
-                
+
             } catch (error) {
                 console.error('Load error:', error);
                 updateSyncStatus('error', 'Failed to load');
@@ -530,13 +602,119 @@
             }
         }
 
+        async function updateGoogleSheets(forceSave = true, column = 15) {
+            // Don't save if we're loading or already saving
+            if (!forceSave) {
+                console.log('BLOCKED SAVE - Another save in progress');
+                return;
+            }
+
+            // Add a stack trace to see what's calling this
+            console.trace('updateGoogleSheets called');
+
+            updateSyncStatus('saving', 'Saving to Google Sheets...');
+            isSaving = true;
+
+            const values = locations.map(loc => ({
+                row: loc.row,
+                territory: loc.territory
+            }));
+            const updates = values;
+
+            try {
+                // Find the range based on the min and max rows in updates
+                const rows = updates.map(update => update.row);
+                const minRow = Math.min(...rows);
+                const maxRow = Math.max(...rows);
+                // Convert column number to letter (e.g., 15 to 'O')
+                const columnLetter = getColumnLetter(column);
+                // Range for the specified column from minRow to maxRow
+                const range = encodeURIComponent(`${SHEET_NAME}!${columnLetter}${minRow}:${columnLetter}${maxRow}`);
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`;
+
+                console.log('Updating at URL:', url); // Debug log
+
+                // Prepare the values array for the specified rows in the chosen column
+                // Create a sparse array to match the range (minRow to maxRow)
+                const values = Array.from({ length: maxRow - minRow + 1 }, () => ['']);
+                updates.forEach(update => {
+                    const relativeRowIndex = update.row - minRow;
+                    if (relativeRowIndex >= 0 && relativeRowIndex < values.length) {
+                        values[relativeRowIndex][0] = update.territory; // The specified column is the first (and only) column in the range
+                    }
+                });
+
+
+                const body = {
+                    values: values,
+                };
+                try {
+                    gapi.client.sheets.spreadsheets.values.update({
+                        spreadsheetId: SHEET_ID,
+                        range: range,
+                        valueInputOption: 'USER_ENTERED',
+                        resource: body,
+                    }).then((response) => {
+                        const result = response.result;
+                        console.log(`${result.updatedCells} cells updated.`);
+                        if (callback) callback(response);
+                    });
+                } catch (err) {
+                    console.log('Error: ', err);
+                    return;
+                }
+
+
+
+                const response = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        values: values // 2D array of values for the range columnLetter:minRow to columnLetter:maxRow
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error:', errorText);
+                    throw new Error('Failed to update data');
+                }
+
+                // const data = await response.json();
+                console.log('Update successful:', data);
+                updateSyncStatus('success', 'Saved successfully');
+                isSaving = false;
+                // return;
+                // return data;
+            } catch (error) {
+                console.error('Save error:', error);
+                updateSyncStatus('error', 'Failed to save');
+                isSaving = false;
+                throw error;
+            }
+        }
+
+        // Helper function to convert column number to letter (1=A, 2=B, ..., 15=O, etc.)
+        function getColumnLetter(columnNumber) {
+            let letter = '';
+            let temp = columnNumber;
+            while (temp > 0) {
+                const remainder = (temp - 1) % 26;
+                letter = String.fromCharCode(65 + remainder) + letter;
+                temp = Math.floor((temp - 1) / 26);
+            }
+            return letter;
+        }
+
         // Process Google Sheets data
         function processGoogleSheetsData(values) {
             if (!values || values.length < 2) return;
-            
+
             const headers = values[0];
             const rows = values.slice(1);
-            
+
             // Find column indices (search all columns)
             columnIndices = {
                 name: findColumnIndex(headers, ['name', 'account', 'location', 'store']),
@@ -554,10 +732,10 @@
                 threeYrNNS: findColumnIndex(headers, ['3 yr plan nns', '3yr plan nns']), // Column R
                 dstarTPVNNS: findColumnIndex(headers, ['dstar tpv nns']) // Column S
             };
-            
+
             console.log('Column indices found:', columnIndices);
             console.log('Territory column is:', columnIndices.territory, '(0-based), which is column', columnIndices.territory + 1, 'in sheets');
-            
+
             // Process locations - keep track of actual row numbers
             let locationCount = 0;
             locations = rows
@@ -566,7 +744,7 @@
                     if (!row[columnIndices.lat] || !row[columnIndices.lng]) {
                         return null;
                     }
-                    
+
                     locationCount++;
                     return {
                         row: index + 2, // Google Sheets row number (1-indexed, plus header)
@@ -588,37 +766,37 @@
                 })
                 .filter(loc => loc !== null) // Remove null entries
                 .map((loc, index) => ({ ...loc, id: index })); // Add sequential IDs after filtering
-            
+
             console.log(`Processed ${locations.length} locations from ${rows.length} rows`);
 
             // Extract unique values
             territories = [...new Set(locations.map(loc => loc.territory))];
             states = [...new Set(locations.map(loc => loc.state).filter(s => s))].sort();
-            
+
             // Initialize colors - load from localStorage if available
             const savedColors = localStorage.getItem('territoryColors');
             if (savedColors) {
                 territoryColors = JSON.parse(savedColors);
             }
-            
+
             territories.forEach((territory, index) => {
                 if (!territoryColors[territory]) {
                     territoryColors[territory] = DEFAULT_COLORS[index % DEFAULT_COLORS.length];
                 }
             });
-            
+
             // Save updated colors
             localStorage.setItem('territoryColors', JSON.stringify(territoryColors));
-            
+
             // Initialize selections
             selectedTerritories = new Set(territories);
             if (selectedStates.size === 0) {
                 selectedStates = new Set(states);
             }
-            
+
             updateUI();
             updateMarkers();
-            
+
             if (locations.length > 0) {
                 const bounds = L.latLngBounds(locations.map(loc => [loc.lat, loc.lng]));
                 map.fitBounds(bounds, { padding: [50, 50] });
@@ -631,39 +809,65 @@
                 alert('To enable saving, you need to set up a Google Apps Script Web App. For now, data is read-only.');
                 return;
             }
-            
+
+            if (!accessToken) {
+                if (!tokenClient) {
+                    initGoogleOAuth();
+                }
+                tokenClient.requestAccessToken();
+                return; // The callback will resume this function
+            }
+
             isSaving = true; // Set save flag
             updateSyncStatus('loading', 'Saving to Google Sheets...');
-            
+
             try {
-                // Prepare data for Google Sheets
+                // Prepare data for Google Sheetswe
                 const values = locations.map(loc => ({
                     row: loc.row,
                     territory: loc.territory
                 }));
-                
+
                 console.log(`Saving ${values.length} territory updates to Google Sheets`);
-                
+
                 const response = await fetch(webAppUrl, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: {
+                        'Authorization': `Bearer ${accessToken}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         action: 'update',
-                        data: values
+                        sheetName: 'TerritoryData',
+                        territoryColumn: 15,
+                        updates: values
                     })
                 });
-                
+
+                if (response.status === 302) {
+                    const location = response.headers.get('Location');
+                    if (location) {
+                        console.log('Redirected to:', location);
+                        // Optionally, follow the redirect
+                        const redirectedResponse = await fetch(location);
+                        console.log('Redirected response:', await redirectedResponse.text());
+                    }
+                } else if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                } else {
+                    const data = await response.json();
+                    console.log('Script executed successfully:', data);
+                }
+
                 updateSyncStatus('success', 'Saved successfully');
-                
+
                 // Wait a bit then reload to confirm changes
                 setTimeout(() => {
                     isSaving = false; // Clear save flag
                     loadFromGoogleSheets(true); // Force load
                 }, 1000);
-                
+
             } catch (error) {
                 console.error('Save error:', error);
                 updateSyncStatus('error', 'Failed to save');
@@ -700,9 +904,9 @@
         function getMarkerSize(location) {
             const sizeMetric = document.getElementById('sizeMetric').value;
             if (sizeMetric === 'none') return 10; // Default size
-            
+
             let value = 0;
-            switch(sizeMetric) {
+            switch (sizeMetric) {
                 case '3 Yr Plan Mrkt Shr':
                     value = location.planMrktShr;
                     break;
@@ -713,37 +917,37 @@
                     value = location.prusaNNS;
                     break;
             }
-            
+
             // Debug log to see values
             console.log(`Location: ${location.name}, Metric: ${sizeMetric}, Value: ${value}`);
-            
+
             // If value is 0, null, or NaN, return minimum size
             if (!value || value === 0 || isNaN(value)) return 6;
-            
+
             // Get all positive values for the selected metric
             const allValues = locations.map(loc => {
                 let val = 0;
-                switch(sizeMetric) {
-                    case '3 Yr Plan Mrkt Shr': 
+                switch (sizeMetric) {
+                    case '3 Yr Plan Mrkt Shr':
                         val = loc.planMrktShr || 0;
                         break;
-                    case 'Dstar TPV': 
+                    case 'Dstar TPV':
                         val = loc.dstarTPV || 0;
                         break;
-                    case 'PRUSA NNS': 
+                    case 'PRUSA NNS':
                         val = loc.prusaNNS || 0;
                         break;
                 }
                 return val;
             }).filter(v => v > 0 && !isNaN(v));
-            
+
             if (allValues.length === 0) return 10;
-            
+
             const maxValue = Math.max(...allValues);
             const minValue = Math.min(...allValues);
-            
+
             console.log(`Range: ${minValue} to ${maxValue}`);
-            
+
             // Linear scaling for better visibility
             let normalizedValue;
             if (maxValue === minValue) {
@@ -751,14 +955,14 @@
             } else {
                 normalizedValue = (value - minValue) / (maxValue - minValue);
             }
-            
+
             // Scale between 6 and 25 pixels
             const minSize = 6;
             const maxSize = 25;
             const size = minSize + (normalizedValue * (maxSize - minSize));
-            
+
             console.log(`Normalized: ${normalizedValue}, Size: ${size}`);
-            
+
             return size;
         }
 
@@ -771,16 +975,16 @@
             const locationsToShow = locations.filter(loc => {
                 // State filter
                 if (selectedStates.size > 0 && !selectedStates.has(loc.state)) return false;
-                
+
                 // Territory filter
                 if (!selectedTerritories.has(loc.territory)) return false;
-                
+
                 // Premise filter
                 if (premiseFilter !== 'all') {
                     if (premiseFilter === 'on' && loc.premise !== 'on') return false;
                     if (premiseFilter === 'off' && loc.premise !== 'off') return false;
                 }
-                
+
                 return true;
             });
 
@@ -788,9 +992,9 @@
                 const color = territoryColors[location.territory] || getTerritoryColor(location.territory);
                 const isSelected = selectedLocations.has(location.id);
                 const size = getMarkerSize(location);
-                
+
                 let marker;
-                
+
                 const options = {
                     radius: size,
                     fillColor: color,
@@ -799,7 +1003,7 @@
                     opacity: 1,
                     fillOpacity: 0.8
                 };
-                
+
                 // On-premise = circle, Off-premise = square
                 if (location.premise === 'on') {
                     marker = L.circleMarker([location.lat, location.lng], options);
@@ -809,21 +1013,21 @@
                     const sizeInMeters = size * metersPerPixel * 2; // Convert pixel size to meters
                     const latOffset = sizeInMeters / 111111; // degrees latitude per meter
                     const lngOffset = sizeInMeters / (111111 * Math.cos(location.lat * Math.PI / 180)); // degrees longitude per meter
-                    
+
                     marker = L.rectangle([
-                        [location.lat - latOffset/2, location.lng - lngOffset/2],
-                        [location.lat + latOffset/2, location.lng + lngOffset/2]
+                        [location.lat - latOffset / 2, location.lng - lngOffset / 2],
+                        [location.lat + latOffset / 2, location.lng + lngOffset / 2]
                     ], options);
                 }
 
-                const premiseLabel = location.premise === 'on' ? 'On Premise' : 
-                                   location.premise === 'off' ? 'Off Premise' : 'Unknown';
+                const premiseLabel = location.premise === 'on' ? 'On Premise' :
+                    location.premise === 'off' ? 'Off Premise' : 'Unknown';
 
                 const sizeMetric = document.getElementById('sizeMetric').value;
                 let sizeInfo = '';
                 if (sizeMetric !== 'none') {
                     let value = 0;
-                    switch(sizeMetric) {
+                    switch (sizeMetric) {
                         case '3 Yr Plan Mrkt Shr':
                             value = location.planMrktShr;
                             break;
@@ -863,16 +1067,16 @@
                     </div>
                 `);
 
-                marker.on('click', function(e) {
+                marker.on('click', function (e) {
                     // Stop propagation to prevent map click event
                     L.DomEvent.stopPropagation(e);
-                    
+
                     // Track that this popup is open
                     openPopupLocationId = location.id;
-                    
+
                     // Open popup
                     e.target.openPopup();
-                    
+
                     // Handle selection only if NOT in drawing mode
                     if (!drawingMode) {
                         // Toggle selection
@@ -881,30 +1085,30 @@
                         } else {
                             selectedLocations.add(location.id);
                         }
-                        
+
                         // Update only the visual state of this marker without recreating all markers
                         const isNowSelected = selectedLocations.has(location.id);
-                        
+
                         // For circle markers
                         if (marker.setStyle) {
                             marker.setStyle({
                                 weight: isNowSelected ? 2 : 1
                             });
                         }
-                        
+
                         // For rectangles (which don't have setStyle in older Leaflet)
                         if (marker._path) {
                             marker._path.setAttribute('stroke-width', isNowSelected ? 2 : 1);
                         }
-                        
+
                         updateSelectionUI();
-                        
+
                         // Don't call updateMarkers() here - it destroys the popup!
                     }
                 });
-                
+
                 // Track when popup closes
-                marker.on('popupclose', function() {
+                marker.on('popupclose', function () {
                     if (openPopupLocationId === location.id) {
                         openPopupLocationId = null;
                     }
@@ -915,7 +1119,7 @@
             });
 
             updateLocationCount();
-            
+
             // Restore open popup if there was one
             if (openPopupLocationId !== null && markers[openPopupLocationId]) {
                 markers[openPopupLocationId].openPopup();
@@ -933,7 +1137,7 @@
             drawingMode = !drawingMode;
             const btn = document.getElementById('drawBtn');
             const info = document.getElementById('drawingModeInfo');
-            
+
             if (drawingMode) {
                 map.addControl(drawControl);
                 btn.classList.remove('bg-gray-200', 'text-gray-700');
@@ -958,28 +1162,28 @@
         // Update stats
         function updateStats() {
             // Get filtered locations by state
-            const stateFilteredLocations = locations.filter(loc => 
+            const stateFilteredLocations = locations.filter(loc =>
                 selectedStates.size === 0 || selectedStates.has(loc.state)
             );
-            
+
             document.getElementById('totalLocations').textContent = stateFilteredLocations.length;
-            
+
             // Get territories that have locations in selected states
             const validTerritories = [...new Set(stateFilteredLocations.map(loc => loc.territory))];
             document.getElementById('totalTerritories').textContent = validTerritories.length;
 
             const stats = _.groupBy(stateFilteredLocations, 'territory');
             const territoryList = document.getElementById('territoryList');
-            
+
             territoryList.innerHTML = validTerritories
                 .sort()
                 .map(territory => {
                     const locs = stats[territory] || [];
-                    const percentage = stateFilteredLocations.length > 0 
+                    const percentage = stateFilteredLocations.length > 0
                         ? ((locs.length / stateFilteredLocations.length) * 100).toFixed(1)
                         : 0;
                     const isChecked = selectedTerritories.has(territory);
-                    
+
                     return `
                         <div class="flex items-center space-x-2">
                             <input type="checkbox" 
@@ -1021,7 +1225,7 @@
         // Select all territories
         function selectAllTerritories() {
             // Only select territories that are visible (have locations in selected states)
-            const stateFilteredLocations = locations.filter(loc => 
+            const stateFilteredLocations = locations.filter(loc =>
                 selectedStates.size === 0 || selectedStates.has(loc.state)
             );
             const validTerritories = [...new Set(stateFilteredLocations.map(loc => loc.territory))];
@@ -1048,7 +1252,7 @@
                 }
                 return true;
             }).length;
-            
+
             document.getElementById('locationCount').textContent = `${count} locations shown`;
         }
 
@@ -1073,13 +1277,13 @@
             console.log('=== REASSIGN TERRITORY START ===');
             console.log('New territory:', newTerritory);
             console.log('Selected locations:', selectedLocations.size);
-            
+
             // Set save flag IMMEDIATELY to block any reloads
             isSaving = true;
-            
+
             // Track which locations are being changed
             const changedLocations = [];
-            
+
             locations = locations.map(loc => {
                 if (selectedLocations.has(loc.id)) {
                     changedLocations.push({
@@ -1094,7 +1298,6 @@
                 return loc;
             });
 
-            console.log('Changed locations:', changedLocations);
 
             if (!territories.includes(newTerritory)) {
                 territories.push(newTerritory);
@@ -1109,10 +1312,16 @@
             updateMarkers();
             updateSelectionUI();
             document.getElementById('newTerritory').value = '';
-            
+
             console.log('UI updated. Starting save...');
-            
+
             // Save to Google Sheets - the save function will clear isSaving when done
+            // updateGoogleSheets().then(() => {
+            //     console.log('=== REASSIGN TERRITORY COMPLETE ===');
+            // }).catch(err => {
+            //     console.error('Save error in reassign:', err);
+            //     isSaving = false; // Clear flag on error
+            // });
             saveToGoogleSheets().then(() => {
                 console.log('=== REASSIGN TERRITORY COMPLETE ===');
             }).catch(err => {
@@ -1137,7 +1346,7 @@
             updateMarkers();
             updateSelectionUI();
         }
-        
+
         // Manual mode toggle
         let manualMode = true; // Start in manual mode
         function toggleManualMode() {
@@ -1150,33 +1359,34 @@
             }
             console.log('Manual mode:', manualMode);
         }
-        
+
         // Test function to verify web app connection
-        window.testWebApp = function() {
+        window.testWebApp = function () {
             console.log('Testing web app connection...');
             console.log('Web App URL:', webAppUrl);
-            
+
             const testCallback = 'testCallback_' + Date.now();
-            
-            window[testCallback] = function(response) {
+
+            window[testCallback] = function (response) {
                 console.log('✅ Web App responded:', response);
                 delete window[testCallback];
                 document.getElementById(testCallback).remove();
             };
-            
+
             const script = document.createElement('script');
             script.id = testCallback;
             script.src = `${webAppUrl}?callback=${testCallback}&test=true`;
-            
-            script.onerror = function() {
+
+            script.onerror = function () {
                 console.error('❌ Failed to connect to web app');
                 console.error('URL was:', script.src);
                 delete window[testCallback];
                 script.remove();
             };
-            
+
             document.head.appendChild(script);
         };
     </script>
 </body>
+
 </html>
